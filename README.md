@@ -6,6 +6,13 @@ Race platform for the Ekiti Marathon: free runner registration, sponsor payments
 - API contract: [docs/api-contract.md](docs/api-contract.md)
 - Task board: GitHub Projects → **EkitiRun v1**
 
+## Collaborators
+
+- [@Ol-create](https://github.com/Ol-create) (maintainer)
+- [@logicgirl](https://github.com/logicgirl)
+- [@Sammyfemmy](https://github.com/Sammyfemmy)
+- [@Greatest-grace123](https://github.com/Greatest-grace123)
+
 ## Project structure
 
 Each folder says who owns it. Work only in the folders your task card names.
@@ -54,4 +61,132 @@ ekitirun/
         └── public/
 ```
 
-Full setup instructions come with ticket E1.
+## Requirements
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (on Windows, with the WSL 2 backend)
+- [Node.js](https://nodejs.org/) 20 or newer and [pnpm](https://pnpm.io/installation) 9 (`corepack enable` sets this up)
+- Optional, for running the API outside Docker: Python 3.12 and [uv](https://docs.astral.sh/uv/)
+
+## Getting started
+
+### 1. Clone and create env files
+
+```bash
+git clone <repo-url> ekitirun
+cd ekitirun
+cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env.local
+```
+
+Never commit `.env` files. They are ignored by git.
+
+### 2. Start the backend (Postgres, Redis, API, worker)
+
+```bash
+docker compose up -d
+```
+
+The first run takes a few minutes while images download and build. When it is done:
+
+| Service | URL / port | Notes |
+|---|---|---|
+| API | http://localhost:8000 | Reloads automatically when you edit files in `apps/api` |
+| API docs (Swagger) | http://localhost:8000/docs | |
+| Health check | http://localhost:8000/health | Returns `{"status": "ok"}` |
+| Worker | none | ARQ jobs: invoice and receipt PDFs |
+| Postgres | `localhost:5432` | user, password and database are all `ekitirun` |
+| Redis | `localhost:6379` | |
+
+All feature routes live under `/api/v1`.
+
+### 3. Start the frontend
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Open http://localhost:3000.
+
+## Environment variables
+
+### API (`apps/api/.env`)
+
+| Variable | Example | Purpose |
+|---|---|---|
+| `DATABASE_URL` | `postgresql+asyncpg://ekitirun:ekitirun@db:5432/ekitirun` | Postgres connection. Use host `db` inside Docker, `localhost` outside it |
+| `REDIS_URL` | `redis://redis:6379/0` | Redis for the worker queue. Use host `redis` inside Docker, `localhost` outside it |
+| `JWT_SECRET` | `change-me` | Signs login tokens. Use a long random value outside local dev |
+| `QR_SIGNING_SECRET` | `change-me` | Signs runner QR codes |
+| `PAYSTACK_SECRET_KEY` | `sk_test_xxx` | Paystack key. Use test keys (`sk_test_...`) locally |
+| `TERMII_API_KEY` | | Termii SMS key. Leave empty locally |
+| `TERMII_SENDER_ID` | `EkitiRun` | SMS sender name |
+| `CORS_ORIGINS` | `http://localhost:3000` | Allowed frontend origins, comma-separated: `http://localhost:3000,https://ekitirun.ng` |
+
+After changing `apps/api/.env`, restart the services so they pick it up:
+
+```bash
+docker compose up -d --force-recreate api worker
+```
+
+### Web (`apps/web/.env.local`)
+
+| Variable | Example | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Base URL of the API |
+
+## Everyday commands
+
+| Task | Command |
+|---|---|
+| Start the backend | `docker compose up -d` |
+| Follow API and worker logs | `docker compose logs -f api worker` |
+| See service status | `docker compose ps` |
+| Stop everything | `docker compose down` |
+| Stop and **delete the database** | `docker compose down -v` |
+| Rebuild after changing `pyproject.toml` | `docker compose up -d --build` |
+| Open a shell in the API container | `docker compose exec api bash` |
+| Open a Postgres shell | `docker compose exec db psql -U ekitirun` |
+| Run the frontend | `pnpm dev` |
+| Lint the frontend | `pnpm lint` |
+| Build the frontend | `pnpm build` |
+| Regenerate API types for the frontend | `pnpm gen:api` (the API must be running) |
+
+### Working on the API
+
+- Python code changes reload automatically; you only rebuild when dependencies in `apps/api/pyproject.toml` change.
+- Each feature lives in `apps/api/app/modules/<feature>/` with its own router, schemas, service and tests.
+- After you change an endpoint or schema, run `pnpm gen:api` so `apps/web/lib/api-types.ts` matches, and commit both.
+
+### Running API tests and lint
+
+Outside Docker, from `apps/api`:
+
+```bash
+uv sync
+uv run pytest
+uv run ruff check .
+```
+
+`uv sync` installs the dev tools (pytest, ruff, mypy). PDF rendering needs WeasyPrint's system libraries (Pango); if they are missing on your machine, run tests in Docker instead:
+
+```bash
+docker compose exec api sh -c "uv pip install --system pytest pytest-asyncio && pytest"
+```
+
+## Troubleshooting
+
+**`request returned 500 Internal Server Error ... dockerDesktopLinuxEngine`**
+Docker Desktop's engine isn't running properly. Quit Docker Desktop, run `wsl --shutdown`, start Docker Desktop again and wait for "Engine running". If it keeps happening, update Docker Desktop.
+
+**`error parsing value for field "cors_origins"`**
+You are on an old version of `app/core/config.py`. Pull the latest code. `CORS_ORIGINS` is a plain comma-separated list, not JSON.
+
+**`port is already allocated` (5432, 6379 or 8000)**
+Something else on your machine uses that port, often a local Postgres or Redis. Stop it, or change the left-hand port in `docker-compose.yml` (for example `"5433:5432"`) without committing that change.
+
+**API container keeps restarting**
+Run `docker compose logs api` and read the last traceback. It is usually a missing or wrong value in `apps/api/.env`.
+
+**Frontend can't reach the API (CORS or network errors)**
+Check that the API is up at http://localhost:8000/health, that `NEXT_PUBLIC_API_URL` points to it, and that your frontend's origin is in `CORS_ORIGINS`.
