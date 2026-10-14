@@ -1,0 +1,8 @@
+{
+  "name": "EkitiRun",
+  "short_name": "EkitiRun",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0B6E4F"
+}

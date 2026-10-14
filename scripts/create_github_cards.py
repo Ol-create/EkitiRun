@@ -12,6 +12,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 OWNER = "Ol-create"
@@ -55,7 +56,12 @@ APPLY = "--apply" in sys.argv
 
 
 def gh(*args, check=True):
-    result = subprocess.run(["gh", *args], capture_output=True, text=True, encoding="utf-8")
+    # Retry transient network failures (slow or flaky connections).
+    for attempt in range(5):
+        result = subprocess.run(["gh", *args], capture_output=True, text=True, encoding="utf-8")
+        if "error connecting to" not in result.stderr and "timeout" not in result.stderr.lower():
+            break
+        time.sleep(3 * (attempt + 1))
     if check and result.returncode != 0:
         raise RuntimeError(f"gh {' '.join(args[:3])}… failed:\n{result.stderr.strip()}")
     return result

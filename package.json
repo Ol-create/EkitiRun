@@ -1,0 +1,11 @@
+{
+  "name": "ekitirun",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "lint": "pnpm --filter web lint",
+    "gen:api": "pnpm --filter web gen:api"
+  }
+}
