@@ -2,6 +2,7 @@
 
 Newbies import from here (e.g. `require_admin`) but don't change it.
 """
+
 from fastapi import HTTPException, status
 
 

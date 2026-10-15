@@ -31,7 +31,7 @@ A multi-step form at `/register`:
 1. **Your details:** first name, last name, gender, date of birth, email (optional), phone (Nigerian format; accept `080…` and convert it to `+23480…`).
 2. **Category:** cards loaded from `GET /categories`, showing name, distance and "X slots left". Disable full categories and label them "Full".
 3. **Emergency contact:** name and phone.
-4. **Review:** a summary with Edit buttons, then Continue, which goes to phone verification (F1.2).
+4. **Review:** a summary with Edit buttons, and a required checkbox: "I agree to wear a GPS tracker during the race so my position can be shown live. My location data is deleted 30 days after the race." Then Continue, which goes to phone verification (F1.2) and sends `tracking_consent: true`.
 
 **Acceptance criteria**
 - [ ] Zod validation on every field, with clear error messages under each field.
@@ -54,7 +54,7 @@ A multi-step form at `/register`:
 **Acceptance criteria**
 - [ ] Shows the name, category, a large **bib number**, and the QR image from `qr_png_url`.
 - [ ] "Download QR" button that saves the PNG, and a print-friendly layout (`@media print`).
-- [ ] Short instructions: "Bring this QR code to bib collection".
+- [ ] Short instructions: "Bring this QR code to bib collection. You'll get your bib and GPS tracker there. Return the tracker at the finish."
 - [ ] Opening the page directly without registering redirects to `/register`.
 
 ## F1.4: Sponsor pages (2 pts)

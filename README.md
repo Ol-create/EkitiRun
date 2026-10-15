@@ -1,6 +1,6 @@
 # EkitiRun
 
-Race platform for the Ekiti Marathon: free runner registration, sponsor payments, checkpoint timing and live runner tracking.
+Race platform for the Ekiti Marathon: free runner registration, sponsor payments, checkpoint timing and real-time GPS tracking of every runner.
 
 - Team task split: [docs/tasks/README.md](docs/tasks/README.md) (PDF: [docs/ekitirun-task-split.pdf](docs/ekitirun-task-split.pdf))
 - API contract: [docs/api-contract.md](docs/api-contract.md)
@@ -64,8 +64,11 @@ ekitirun/
 ## Requirements
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (on Windows, with the WSL 2 backend)
-- [Node.js](https://nodejs.org/) 20 or newer and [pnpm](https://pnpm.io/installation) 9 (`corepack enable` sets this up)
-- Optional, for running the API outside Docker: Python 3.12 and [uv](https://docs.astral.sh/uv/)
+- [Node.js](https://nodejs.org/) 22 (LTS) and [pnpm](https://pnpm.io/installation) 12: run `npm install -g pnpm@12`
+- [Git](https://git-scm.com/downloads). On Windows, Git Bash or PowerShell both work for the commands below
+- Optional, for running the API outside Docker: Python 3.12+ and [uv](https://docs.astral.sh/uv/): run `pip install uv`
+
+The exact pnpm version is pinned in `package.json` (`packageManager`), and dependency versions are locked in `pnpm-lock.yaml` and `apps/api/uv.lock`. Don't delete the lockfiles.
 
 ## Getting started
 
@@ -173,6 +176,19 @@ uv run ruff check .
 ```bash
 docker compose exec api sh -c "uv pip install --system pytest pytest-asyncio && pytest"
 ```
+
+## Before you open a PR
+
+CI (`.github/workflows/ci.yml`) runs these on every pull request, and a PR can't be merged while they fail. Run them locally first:
+
+| Part | Commands (from the repo root unless noted) |
+|---|---|
+| Web | `pnpm lint` · `pnpm typecheck` · `pnpm build` |
+| API (in `apps/api`) | `uv run ruff check .` · `uv run ruff format .` · `uv run mypy app` · `uv run pytest` |
+
+`uv run ruff format .` fixes formatting for you; CI only checks it.
+
+**Adding a package:** frontend `pnpm --filter web add <package>`; API `uv add <package>` in `apps/api`. Commit the updated lockfile with your change. New npm packages that run install scripts must be approved by Lead (`allowBuilds` in `pnpm-workspace.yaml`).
 
 ## Troubleshooting
 

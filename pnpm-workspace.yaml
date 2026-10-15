@@ -1,2 +1,6 @@
 packages:
   - "apps/web"
+
+# Packages allowed to run install scripts (pnpm blocks all others).
+allowBuilds:
+  unrs-resolver: true

@@ -16,6 +16,7 @@ You build the FastAPI endpoints for sponsor tiers and pledges, the public runner
 apps/api/app/modules/sponsors/     # B1, B2
 apps/api/app/modules/runners/      # B3 (read-only endpoints)
 apps/api/app/templates/pdf/        # B4
+apps/api/app/modules/trackers/     # B5
 apps/api/tests/                    # B4 tests
 ```
 
@@ -23,7 +24,7 @@ Module layout (copied from `categories/`): `router.py` (endpoints), `schemas.py`
 
 **Do not touch:**
 - `app/models/` and `alembic/`: ask Lead if you need a column.
-- `app/modules/auth/`, `app/modules/payments/`, `app/modules/scans/` and `app/modules/timing/`.
+- `app/modules/auth/`, `app/modules/payments/`, `app/modules/scans/`, `app/modules/timing/`, `app/modules/gps/` and `app/modules/kit/`.
 
 ---
 
@@ -76,6 +77,17 @@ Module layout (copied from `categories/`): `router.py` (endpoints), `schemas.py`
   - Soft delete.
   - Search by name and by bib.
   - The private-fields test.
+
+## B5: Tracker inventory endpoints (2 pts)
+
+Code lives in `apps/api/app/modules/trackers/`. Lead owns the GPS ingestion and kit endpoints; you build the admin inventory.
+
+**Acceptance criteria**
+- [ ] `GET /admin/trackers?status=` lists trackers with the assigned bib, battery and last-seen time, filterable by status.
+- [ ] `POST /admin/trackers` adds a tracker (`409 TRACKER_EXISTS` for a duplicate `device_id` or `label`), and `PATCH /admin/trackers/{id}` changes the label or marks it `lost`.
+- [ ] All three are protected with `require_admin`.
+- [ ] A CSV import script (`scripts/import_trackers.py`) so the organisers can load hundreds of trackers from the supplier's list.
+- [ ] pytest coverage: success, duplicates, admin protection, status filter.
 
 ---
 

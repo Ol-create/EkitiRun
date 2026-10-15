@@ -1,6 +1,6 @@
 # Frontend 2: Public Race-Day Pages (10%)
 
-You build what families and spectators watch during the race: the leaderboard, the runner search, and the live map. On race day thousands of people may open these pages at once on mobile data, so keep them **fast and light**.
+You build what families and spectators watch during the race: the leaderboard, the runner search, and the live GPS maps. On race day thousands of people may open these pages at once on mobile data, so keep them **fast and light**.
 
 ## Before you start
 
@@ -8,7 +8,7 @@ You build what families and spectators watch during the race: the leaderboard, t
   - The [Next.js Learn course](https://nextjs.org/learn), chapters on App Router and data fetching.
   - [React Leaflet](https://react-leaflet.js.org/) basics: a map, a line and markers.
   - MDN: [Using server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events).
-- Run the project locally and read `docs/api-contract.md`, sections *Categories and runners* and *Race day*.
+- Run the project locally and read `docs/api-contract.md`, sections *Categories and runners*, *Race day* and *Live GPS tracking*.
 - In Phase 1 the race-day endpoints return **fake data**. Build against it and you'll be ready when the real data arrives in Phase 2.
 
 ## Where your code lives
@@ -16,11 +16,13 @@ You build what families and spectators watch during the race: the leaderboard, t
 ```
 apps/web/app/results/                # F2.1
 apps/web/app/track/                  # F2.2, F2.3
+apps/web/app/live/                   # F2.4
 apps/web/components/results/
 apps/web/components/track/
+apps/web/components/live/
 ```
 
-Don't edit `lib/api.ts`, `lib/tracking.ts` (Lead's helper, you only *call* it), `app/scanner/`, or anything in `apps/api/`.
+Don't edit `lib/api.ts`, `lib/tracking.ts` (Lead's helper, you only *call* it), `app/scanner/`, `app/kit/`, or anything in `apps/api/`.
 
 ---
 
@@ -56,10 +58,21 @@ Add the map to `/track/[bib]`, above the splits table.
 **Acceptance criteria**
 - [ ] Leaflet map with OpenStreetMap tiles. Load it with `dynamic(..., { ssr: false })`, because Leaflet needs the browser.
 - [ ] Draw the route line and the checkpoint markers from `GET /route`. Markers for checkpoints the runner has passed are green, the others grey.
-- [ ] Runner marker at the position returned by Lead's `estimatePosition(...)` from `lib/tracking.ts`, recalculated every 10 s.
-- [ ] If `is_estimate` is true, show a pulsing marker with the label "Estimated position". At a checkpoint, show a solid marker.
+- [ ] Runner marker at the GPS position from `live_position`, moved live by `/stream/positions?bib=` (`EventSource`). Animate the move rather than jumping.
+- [ ] If `live_position` is missing or `is_stale` is true, fall back to Lead's `estimatePosition(...)` from `lib/tracking.ts`, recalculated every 10 s, shown as a pulsing marker labelled "Estimated position". A live GPS marker is solid.
 - [ ] Finished runners show at the finish line. Runners who haven't started show at the start line.
 - [ ] Map height 300px on mobile, 450px on desktop.
+
+## F2.4: Live race map (3 pts)
+
+Page `/live`: every runner on one map.
+
+**Acceptance criteria**
+- [ ] Route line and checkpoints from `GET /route`, and a small dot per runner from `GET /positions`, refreshed every 5 s (pause while the tab is hidden).
+- [ ] Dot colour by category, with a legend. Stale positions are drawn faded.
+- [ ] Category filter, stored in the URL (`?category=FULL`).
+- [ ] Tapping a dot shows the bib and links to `/track/{bib}`.
+- [ ] Stays smooth with 5,000 dots on a cheap Android phone: draw them on a canvas layer (`L.canvas()` / `preferCanvas`), not as 5,000 DOM markers.
 
 ---
 

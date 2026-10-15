@@ -98,14 +98,39 @@ You own the architecture and everything risky: data, auth, money, the scanner, a
 
 - Redis pub/sub channel `scans`, plus the SSE endpoint `/stream/results` with a heartbeat every 15 s.
 
+### E13: GPS tracker ingestion (8 pts)
+
+- Choose the tracker hardware and run a test with 10 units on the real route: fix interval (aim for every 5–10 s), battery life over 6 hours, and mobile signal on every stretch.
+- Run a [Traccar](https://www.traccar.org/) gateway container (in `docker-compose.yml`) that receives the trackers' own protocol and forwards each position to `POST /gps/positions` with the `X-Gateway-Secret` header.
+- Models and migrations for `trackers` (unique `device_id` and `label`, status, assigned runner) and `gps_positions` (device, runner, lat, lng, accuracy, battery, `recorded_at`, `received_at`).
+- Ingestion must keep up with every runner reporting every 5 s (about 1,000 points per second for 5,000 runners): accept the batch, push it to a Redis stream, and let a worker write to Postgres in bulk.
+- Ignore unknown or unassigned devices. Store points more than 200 m from the route, but don't show them.
+- ARQ job that deletes location history 30 days after the race.
+
+### E14: Live position service (6 pts)
+
+- Snap each GPS point to the route line (shapely) to get `distance_km`. Never let a runner's distance go backwards by more than 100 m, so GPS jitter doesn't make them jump around.
+- Keep the latest `live_position` per runner in Redis, with `is_stale` after 2 minutes without a fix.
+- `GET /positions`: a snapshot of every runner on course, rebuilt every 5 s and served from cache, so thousands of spectators never hit Postgres.
+- `GET /stream/positions?bib=`: SSE for one runner, fed by a Redis pub/sub channel `positions:{bib}`, heartbeat every 15 s.
+- Add `live_position` to `GET /runners/{bib}`.
+- Update `estimatePosition(...)` (E10) so it is only the fallback when `live_position` is missing or stale.
+
+### E15: Kit collection and tracker returns (4 pts)
+
+- Page `/kit` in `apps/web`, PIN-protected like the scanner. A volunteer scans the runner's QR, then the tracker's label (barcode or typed), and `POST /kit/assign` links them.
+- Return mode for the finish area: scan a tracker label and `POST /kit/return` frees it.
+- A count on screen of trackers still out, with a list of bibs that haven't returned theirs.
+- Tracker deposit or bib-collection rules are decided with the organisers; the page only records assign and return.
+
 ## Phase 3: Hardening
 
 ### E12: Ship it (4 pts, plus ongoing reviews)
 
 - Deploy: Vercel (web), Render or Railway (API, worker, Redis), Neon (Postgres). Scale up in race week.
-- Locust load test: 5,000 spectators on the leaderboard and SSE, plus 20 scanners syncing.
+- Locust load test: 5,000 spectators on the leaderboard, live map and SSE, 20 scanners syncing, and simulated GPS from every runner (one point every 5 s each).
 - Race-day runbook: who to call, how to restart, the manual results fallback.
-- Full rehearsal on a test route with volunteers.
+- Full rehearsal on a test route with volunteers, including handing out and collecting trackers.
 
 ## Mentoring checklist
 

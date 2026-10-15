@@ -49,7 +49,7 @@ LABELS = {
 }
 
 # Phase for newbie tickets (lead.md carries its own "## Phase N" headings).
-NEWBIE_PHASE = {"B3": 2}
+NEWBIE_PHASE = {"B3": 2, "B5": 2, "F2.4": 2}
 DEFAULT_NEWBIE_PHASE = 1
 
 APPLY = "--apply" in sys.argv
