@@ -18,10 +18,10 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 async def require_admin(authorization: Annotated[str | None, Header()] = None) -> None:
     """Admin-only endpoints.
 
-    Until E3 adds real admin login, development accepts
+    Until real admin login is built, development accepts
     `Authorization: Bearer <ADMIN_DEV_TOKEN>` (default `dev-admin`).
     """
-    # TODO(Lead, E3): verify a real admin JWT here.
+    # TODO(Lead): verify a real admin login here (not yet scheduled in a ticket).
     if settings.environment == "production":
         raise AppError(401, "ADMIN_AUTH_REQUIRED", "Admin login is not available yet")
     if authorization != f"Bearer {settings.admin_dev_token}":

@@ -14,7 +14,7 @@ import segno
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.schemas import CategorySummary
-from app.modules.auth.service import phone_from_verification_token
+from app.core.security import phone_from_verification_token
 from app.modules.registrations.schemas import RegistrationIn, RegistrationOut
 from app.stubs import race
 

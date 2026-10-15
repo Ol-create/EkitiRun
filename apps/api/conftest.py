@@ -1,6 +1,8 @@
 """Shared test fixtures for tests/ and app/modules/*/tests/. Owner: Lead.
 
 - `client`: an async HTTP client for the app. Use it for every API test.
+- `redis` and `sms` (automatic in every test): an in-memory Redis and a fake SMS
+  sender. Use `sms.last_code_for(phone)` to read an OTP that was "sent".
 - `session`: a database session for tests that need Postgres. Each test runs
   inside a transaction that is rolled back afterwards, so tests never see each
   other's data. Requesting `session` (or `db_client`) makes the app use it too.
@@ -11,15 +13,19 @@ If Postgres isn't reachable, database tests are skipped (CI always has it).
 """
 
 import os
-from collections.abc import AsyncIterator
+import re
+from collections.abc import AsyncIterator, Iterator
 
 import pytest
+from fakeredis.aioredis import FakeRedis
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
 from app.core.database import get_session
+from app.core.redis import get_redis
+from app.core.sms import get_sms_sender
 from app.main import app
 from app.models import Base
 
@@ -27,6 +33,39 @@ TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
     "postgresql+asyncpg://ekitirun:ekitirun@localhost:5433/ekitirun_test",
 )
+
+
+class FakeSms:
+    """Records texts instead of sending them. `sms.last_code_for(phone)` reads the OTP back."""
+
+    def __init__(self) -> None:
+        self.sent: list[tuple[str, str]] = []
+
+    async def send(self, phone: str, message: str) -> None:
+        self.sent.append((phone, message))
+
+    def last_code_for(self, phone: str) -> str:
+        message = next(m for p, m in reversed(self.sent) if p == phone)
+        return re.search(r"\b(\d{6})\b", message).group(1)  # type: ignore[union-attr]
+
+
+@pytest.fixture(autouse=True)
+async def redis() -> AsyncIterator[FakeRedis]:
+    """Every test gets an empty in-memory Redis; the real one is never touched."""
+    fake = FakeRedis(decode_responses=True)
+    app.dependency_overrides[get_redis] = lambda: fake
+    yield fake
+    app.dependency_overrides.pop(get_redis, None)
+    await fake.aclose()
+
+
+@pytest.fixture(autouse=True)
+def sms() -> Iterator[FakeSms]:
+    """Every test gets a fake SMS sender; nothing is ever really sent."""
+    fake = FakeSms()
+    app.dependency_overrides[get_sms_sender] = lambda: fake
+    yield fake
+    app.dependency_overrides.pop(get_sms_sender, None)
 
 
 @pytest.fixture

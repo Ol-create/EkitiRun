@@ -8,6 +8,8 @@ import uuid
 
 import pytest
 
+from app.core.config import settings
+from app.core.security import create_verification_token
 from app.modules.gps import service as gps_service
 from app.stubs import race
 
@@ -16,22 +18,7 @@ ADMIN = {"Authorization": "Bearer dev-admin"}
 PHONE = "+2348031234567"
 
 
-# ---------------------------------------------------------------- auth + registration
-
-
-async def test_otp_flow(client):
-    assert (await client.post(f"{API}/auth/otp/request", json={"phone": PHONE})).status_code == 204
-
-    limited = await client.post(f"{API}/auth/otp/request", json={"phone": "+2348031231111"})
-    assert limited.status_code == 429
-    assert limited.json()["code"] == "OTP_RATE_LIMITED"
-
-    bad = await client.post(f"{API}/auth/otp/verify", json={"phone": PHONE, "code": "999999"})
-    assert bad.json()["code"] == "OTP_INVALID"
-
-    ok = await client.post(f"{API}/auth/otp/verify", json={"phone": PHONE, "code": "123456"})
-    assert ok.status_code == 200
-    assert ok.json()["verification_token"]
+# ---------------------------------------------------- registration (OTP is real: see auth tests)
 
 
 def registration(token: str, **overrides):
@@ -50,8 +37,8 @@ def registration(token: str, **overrides):
 
 
 async def verify(client, phone=PHONE) -> str:
-    r = await client.post(f"{API}/auth/otp/verify", json={"phone": phone, "code": "123456"})
-    return r.json()["verification_token"]
+    """A real signed verification token, as POST /auth/otp/verify would return."""
+    return create_verification_token(phone)
 
 
 async def test_registration_and_qr(client):
@@ -229,7 +216,7 @@ async def test_gps_ingest_needs_gateway_secret(client):
     }
     assert (await client.post(f"{API}/gps/positions", json=body)).status_code == 401
     ok = await client.post(
-        f"{API}/gps/positions", json=body, headers={"X-Gateway-Secret": "change-me"}
+        f"{API}/gps/positions", json=body, headers={"X-Gateway-Secret": settings.gateway_secret}
     )
     assert ok.status_code == 202
     assert ok.json() == {"accepted": 1}

@@ -14,8 +14,8 @@ In Phase 0, Lead ships **stub versions** of every endpoint below that return fak
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| POST | `/auth/otp/request` | `{ phone }` (format `+234…`) | `204`. `429 OTP_RATE_LIMITED` if requested too often |
-| POST | `/auth/otp/verify` | `{ phone, code }` | `{ verification_token }`, valid for 30 min. `400 OTP_INVALID` / `OTP_EXPIRED` |
+| POST | `/auth/otp/request` | `{ phone }` (format `+234…`) | `204`, and an SMS with a 6-digit code valid for 10 minutes. A new code cancels the previous one. `429 OTP_RATE_LIMITED` at more than 1 request per phone per 60 s (the `detail` says how many seconds to wait) or 10 per IP per hour. `502 SMS_SEND_FAILED` if the SMS couldn't be sent (retry straight away) |
+| POST | `/auth/otp/verify` | `{ phone, code }` | `{ verification_token }`, valid for 30 min. `400 OTP_INVALID` (the `detail` says how many attempts are left) / `400 OTP_EXPIRED`. `429 OTP_TOO_MANY_ATTEMPTS` after 5 wrong codes: request a new one |
 | POST | `/registrations` | `{ verification_token, first_name, last_name, gender: "M"\|"F", date_of_birth, email?, category_id, emergency_contact_name, emergency_contact_phone, tracking_consent: true }` | `201 { runner_id, bib_number, category, qr_png_url }`. `401 VERIFICATION_INVALID` (token missing or expired: verify the phone again), `404 CATEGORY_NOT_FOUND`, `409 PHONE_ALREADY_REGISTERED`, `409 CATEGORY_FULL`. `422 TRACKING_CONSENT_REQUIRED` if `tracking_consent` is not `true` (every runner wears a GPS tracker) |
 | GET | `/registrations/{runner_id}/qr.png` | | PNG image of the runner's QR code. This is the `qr_png_url` above |
 
@@ -81,13 +81,12 @@ While an endpoint is still a stub (Phase 0 to 2), it returns fake data and these
 
 | Endpoint | How to trigger it |
 |---|---|
-| `POST /auth/otp/request` | Any valid phone works. A phone ending in `1111` gets `429 OTP_RATE_LIMITED` |
-| `POST /auth/otp/verify` | Code `123456` is valid, `000000` gives `OTP_EXPIRED`, anything else `OTP_INVALID` |
+| `POST /auth/otp/request`, `/auth/otp/verify` | **Real since E3.** In development no SMS is sent and every code is `123456` (`OTP_DEV_CODE`); the message is printed in the API log (`docker compose logs -f api`). To see `OTP_RATE_LIMITED`, request twice within a minute. To see `OTP_TOO_MANY_ATTEMPTS`, enter a wrong code 5 times |
 | `POST /registrations` | The verified phone decides: ending in `0000` gives `PHONE_ALREADY_REGISTERED`, ending in `9999` gives `CATEGORY_FULL`. `category_id` 1 to 4 are FULL, HALF, 10K, FUN |
 | `GET /categories` | Already real: reads the database (run the seed first). `slots_left` ignores registrations until B3 |
 | Runners, results, positions, streams | A simulated race of 240 runners (bibs `F0001`–`F0050`, `H0001`–`H0070`, `T0001`–`T0060`, `R0001`–`R0060`). It starts about 100 minutes in when the API starts and loops every 6.5 hours, so there are always finishers, runners on course, DNFs, runners who never started, stale trackers and runners without one |
 | `POST /sponsors/pledges` | Skips Paystack: `authorization_url` goes straight to `/sponsors/thank-you`. A company name containing "fail" ends `failed`, one containing "pending" stays `pending`, anything else is `paid`. PDF links open a placeholder PDF |
-| Admin endpoints | Send `Authorization: Bearer dev-admin` (development only, until E3) |
-| `POST /gps/positions` | Send `X-Gateway-Secret: change-me` (the value of `GATEWAY_SECRET`) |
+| Admin endpoints | Send `Authorization: Bearer dev-admin` (development only, until admin login exists) |
+| `POST /gps/positions` | Send `X-Gateway-Secret` with the value of `GATEWAY_SECRET` in `apps/api/.env` |
 | `POST /kit/assign`, `/kit/return` | `qr_token` can be a fake bib such as `R0005`. Trackers `TRK-0001`–`0030` are assigned, `TRK-0031`–`0039` are free, `TRK-0040` is lost |
 | `POST /scans/batch` | `qr_token` can be a fake bib; anything else is `invalid` |

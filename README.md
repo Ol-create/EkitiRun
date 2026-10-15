@@ -132,12 +132,16 @@ Open http://localhost:3000.
 |---|---|---|
 | `DATABASE_URL` | `postgresql+asyncpg://ekitirun:ekitirun@db:5432/ekitirun` | Postgres connection. Use host `db` inside Docker, `localhost` outside it |
 | `REDIS_URL` | `redis://redis:6379/0` | Redis for the worker queue. Use host `redis` inside Docker, `localhost` outside it |
-| `JWT_SECRET` | `change-me` | Signs login tokens. Use a long random value outside local dev |
-| `QR_SIGNING_SECRET` | `change-me` | Signs runner QR codes |
+| `JWT_SECRET` | `dev-only-jwt-secret-at-least-32-characters` | Signs phone-verification tokens and hashes OTP codes. Production: 32+ random characters |
+| `QR_SIGNING_SECRET` | `dev-only-qr-secret-at-least-32-characters` | Signs runner QR codes. Production: 32+ random characters |
 | `PAYSTACK_SECRET_KEY` | `sk_test_xxx` | Paystack key. Use test keys (`sk_test_...`) locally |
+| `SMS_PROVIDER` | `console` | `console` prints SMS to the API log instead of sending; production must use `termii` |
 | `TERMII_API_KEY` | | Termii SMS key. Leave empty locally |
+| `OTP_DEV_CODE` | `123456` | Development only: every OTP is this code. Empty = random codes, printed in the API log |
 | `TERMII_SENDER_ID` | `EkitiRun` | SMS sender name |
 | `CORS_ORIGINS` | `http://localhost:3000` | Allowed frontend origins, comma-separated: `http://localhost:3000,https://ekitirun.ng` |
+
+With `ENVIRONMENT=production` the API **refuses to start** if a secret is a development value or shorter than 32 characters, `OTP_DEV_CODE` is set, or SMS isn't going through Termii.
 
 After changing `apps/api/.env`, restart the services so they pick it up:
 
