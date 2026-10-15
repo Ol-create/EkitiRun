@@ -30,6 +30,20 @@ jobs:
   api:
     name: API (ruff, mypy, pytest)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ekitirun
+          POSTGRES_PASSWORD: ekitirun
+          POSTGRES_DB: ekitirun
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ekitirun"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://ekitirun:ekitirun@localhost:5432/ekitirun
+      TEST_DATABASE_URL: postgresql+asyncpg://ekitirun:ekitirun@localhost:5432/ekitirun_test
     defaults:
       run:
         working-directory: apps/api
@@ -43,4 +57,11 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy app
+      - name: Migrations apply, roll back and match the models
+        run: |
+          uv run alembic upgrade head
+          uv run alembic downgrade base
+          uv run alembic upgrade head
+          uv run alembic check
+      - run: uv run python -m scripts.seed
       - run: uv run pytest -q

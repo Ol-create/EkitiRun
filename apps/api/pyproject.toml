@@ -27,10 +27,17 @@ line-length = 100
 # pycodestyle, pyflakes, import order, pyupgrade, bugbear, ruff-specific
 select = ["E", "F", "I", "UP", "B", "RUF"]
 
+[tool.ruff.lint.isort]
+# The local alembic/ folder is migrations, not the alembic package.
+known-third-party = ["alembic"]
+
 [tool.mypy]
 strict = false
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# One event loop for the whole run, so the session-wide DB engine works in every test.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 testpaths = ["tests", "app"]

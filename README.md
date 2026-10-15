@@ -97,10 +97,23 @@ The first run takes a few minutes while images download and build. When it is do
 | API docs (Swagger) | http://localhost:8000/docs | |
 | Health check | http://localhost:8000/health | Returns `{"status": "ok"}` |
 | Worker | none | ARQ jobs: invoice and receipt PDFs |
-| Postgres | `localhost:5432` | user, password and database are all `ekitirun` |
+| Postgres | `localhost:5433` | user, password and database are all `ekitirun`. Port 5433 on your machine, so it doesn't clash with a locally installed Postgres; inside Docker it is `db:5432` |
 | Redis | `localhost:6379` | |
 
 All feature routes live under `/api/v1`.
+
+### 2b. Create the tables and load the sample data (first run, and after pulling new migrations)
+
+```bash
+docker compose exec api alembic upgrade head
+docker compose exec api python -m scripts.seed
+```
+
+The seed loads the four race categories, a **placeholder course** around Ado-Ekiti and its checkpoints. It is safe to run again.
+
+### Fake API (Phase 0 stubs)
+
+Until each feature is built for real, most endpoints return **fake data** from a simulated race that moves on a clock, so the leaderboard, maps and live streams change like a real race. `GET /categories` already reads the real database. The rules for triggering errors (OTP codes, phone numbers that are "already registered", failed payments, admin token) are in [docs/api-contract.md](docs/api-contract.md#phase-0-stub-behaviour).
 
 ### 3. Start the frontend
 
@@ -174,7 +187,7 @@ uv run ruff check .
 `uv sync` installs the dev tools (pytest, ruff, mypy). PDF rendering needs WeasyPrint's system libraries (Pango); if they are missing on your machine, run tests in Docker instead:
 
 ```bash
-docker compose exec api sh -c "uv pip install --system pytest pytest-asyncio && pytest"
+docker compose exec -e TEST_DATABASE_URL=postgresql+asyncpg://ekitirun:ekitirun@db:5432/ekitirun_test api sh -c "uv pip install --system pytest pytest-asyncio && pytest"
 ```
 
 ## Before you open a PR
@@ -198,8 +211,14 @@ Docker Desktop's engine isn't running properly. Quit Docker Desktop, run `wsl --
 **`error parsing value for field "cors_origins"`**
 You are on an old version of `app/core/config.py`. Pull the latest code. `CORS_ORIGINS` is a plain comma-separated list, not JSON.
 
-**`port is already allocated` (5432, 6379 or 8000)**
-Something else on your machine uses that port, often a local Postgres or Redis. Stop it, or change the left-hand port in `docker-compose.yml` (for example `"5433:5432"`) without committing that change.
+**`port is already allocated` (5433, 6379 or 8000)**
+Something else on your machine uses that port, often a local Redis. Stop it, or change the left-hand port in `docker-compose.yml` (for example `"6380:6379"`) without committing that change.
+
+**Docker Desktop shows an error and quits: `removing stale socket ... userAnalyticsOtlpHttp.sock`**
+A known Docker Desktop bug. Quit Docker Desktop, run `wsl --shutdown`, delete `%LOCALAPPDATA%\Docker\run\userAnalyticsOtlpHttp.sock`, then start Docker Desktop again. Updating Docker Desktop fixes it for good. Don't pick "Reset to factory defaults" unless the rest fails: it deletes your images and volumes.
+
+**Running API tests without Docker**
+Database tests look for Postgres at `localhost:5433` (database `ekitirun_test`, created automatically) and are skipped if it isn't there. Point them elsewhere with `TEST_DATABASE_URL=postgresql+asyncpg://user:pass@host:port/ekitirun_test`.
 
 **API container keeps restarting**
 Run `docker compose logs api` and read the last traceback. It is usually a missing or wrong value in `apps/api/.env`.
