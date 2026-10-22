@@ -134,7 +134,8 @@ Open http://localhost:3000.
 | `REDIS_URL` | `redis://redis:6379/0` | Redis for the worker queue. Use host `redis` inside Docker, `localhost` outside it |
 | `JWT_SECRET` | `dev-only-jwt-secret-at-least-32-characters` | Signs phone-verification tokens and hashes OTP codes. Production: 32+ random characters |
 | `QR_SIGNING_SECRET` | `dev-only-qr-secret-at-least-32-characters` | Signs runner QR codes. Production: 32+ random characters |
-| `PAYSTACK_SECRET_KEY` | `sk_test_xxx` | Paystack key. Use test keys (`sk_test_...`) locally |
+| `PAYMENT_PROVIDER` | `fake` | `fake` approves every checkout without Paystack (an email containing "fail" fails), for local work. `paystack` uses the real API; production requires it with a `sk_live_` key |
+| `PAYSTACK_SECRET_KEY` | | Paystack secret key: `sk_test_...` for test mode. Also verifies webhook signatures |
 | `SMS_PROVIDER` | `console` | `console` prints SMS to the API log instead of sending; production must use `termii` |
 | `TERMII_API_KEY` | | Termii SMS key. Leave empty locally |
 | `RACE_DATE` | `2027-03-06` | Race day, for the minimum-age rule. Empty = today. A category's gun start time overrides it |
@@ -194,6 +195,13 @@ uv run ruff check .
 ```bash
 docker compose exec -e TEST_DATABASE_URL=postgresql+asyncpg://ekitirun:ekitirun@db:5432/ekitirun_test api sh -c "uv pip install --system pytest pytest-asyncio && pytest"
 ```
+
+## Paystack setup (sponsor payments)
+
+- **Locally**, leave `PAYMENT_PROVIDER=fake`: checkouts go straight to the thank-you page and succeed, so no Paystack account is needed.
+- **Test mode:** set `PAYMENT_PROVIDER=paystack` and a `sk_test_...` key, then pay with Paystack's test cards. Paystack can't reach `localhost` with webhooks, so locally the pledge is settled when the thank-you page checks its status (`sync_pledge`). To test real webhooks, expose the API with a tunnel (for example `ngrok http 8000`) and use its URL below.
+- **Webhook URL** (Paystack dashboard, Settings > API Keys & Webhooks): `https://<api host>/api/v1/webhooks/paystack`. Set it for test and live mode separately.
+- **Production:** `PAYMENT_PROVIDER=paystack` with the `sk_live_...` key; the API refuses to start otherwise. Turn on "Pay with Transfer" in the dashboard so large sponsors can pay by bank transfer.
 
 ## Before you open a PR
 

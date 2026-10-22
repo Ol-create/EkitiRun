@@ -41,9 +41,9 @@ Module layout (copied from `categories/`): `router.py` (endpoints), `schemas.py`
 
 **Acceptance criteria**
 - [ ] `POST /sponsors/pledges` validates that **exactly one** of `tier_id` or `custom_amount_kobo` is sent (custom amount at least 1,000,000 kobo, i.e. ₦10,000), plus the email format and a Nigerian phone number.
-- [ ] Creates the `sponsor` and `pledge` rows (status `pending`), then calls Lead's `payments.service.start_checkout(pledge)` and returns its `reference` and `authorization_url`.
+- [ ] Creates the `sponsor` and `pledge` rows (status `pending`), then calls Lead's `payments.service.start_checkout(pledge, sponsor.email)` and returns its `reference` and `authorization_url`. Create the pledge with `reference=payments.service.new_reference()`. If `start_checkout` raises `502 PAYMENT_PROVIDER_ERROR`, let it through (don't save a pledge with no checkout).
 - [ ] Enqueues the invoice job with `await enqueue("render_invoice", pledge_id)`.
-- [ ] `GET /sponsors/pledges/{reference}` returns the status and receipt URL, and `404` for an unknown reference.
+- [ ] `GET /sponsors/pledges/{reference}` returns the status and receipt URL, and `404` for an unknown reference. Call `await payments.service.sync_pledge(session, reference)` first, so the status is fresh even if Paystack's webhook is late.
 - [ ] You never set the status to `paid`. Only Lead's webhook does that.
 
 ## B3: Public runner endpoints (3 pts)

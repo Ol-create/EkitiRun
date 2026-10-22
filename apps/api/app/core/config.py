@@ -16,7 +16,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     jwt_secret: str = INSECURE_DEFAULT
     qr_signing_secret: str = INSECURE_DEFAULT
+    # Payments (E5). "fake" approves every checkout without Paystack, for local work;
+    # "paystack" uses the real API (sk_test_ keys for test mode, sk_live_ in production).
+    payment_provider: Literal["fake", "paystack"] = "fake"
     paystack_secret_key: str = ""
+    paystack_base_url: str = "https://api.paystack.co"
 
     # SMS for phone verification (E3). "console" prints messages to the API log
     # instead of sending them; production must use "termii".
@@ -69,6 +73,10 @@ class Settings(BaseSettings):
             problems.append("OTP_DEV_CODE must be empty")
         if self.sms_provider != "termii" or not self.termii_api_key:
             problems.append("SMS_PROVIDER=termii with TERMII_API_KEY")
+        if self.payment_provider != "paystack" or not self.paystack_secret_key.startswith(
+            "sk_live_"
+        ):
+            problems.append("PAYMENT_PROVIDER=paystack with a live PAYSTACK_SECRET_KEY")
         if problems:
             raise ValueError(
                 "Unsafe production settings (secrets need 32+ random characters): "

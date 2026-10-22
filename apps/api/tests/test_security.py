@@ -99,6 +99,8 @@ def test_production_accepts_safe_settings():
         otp_dev_code="",
         sms_provider="termii",
         termii_api_key="live-key",
+        payment_provider="paystack",
+        paystack_secret_key="sk_live_" + strong,
         _env_file=None,
     )
 

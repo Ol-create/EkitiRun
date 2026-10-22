@@ -38,7 +38,7 @@ In Phase 0, Lead ships **stub versions** of every endpoint below that return fak
 | DELETE | `/admin/sponsor-tiers/{id}` | | `204`. Admin only |
 | POST | `/sponsors/pledges` | `{ tier_id? , custom_amount_kobo?, company_name, contact_name, email, phone, website? }`. Send exactly one of `tier_id` or `custom_amount_kobo` | `201 { reference, authorization_url, invoice_pdf_url }` |
 | GET | `/sponsors/pledges/{reference}` | | `{ reference, company_name, amount_kobo, status: "pending"\|"paid"\|"failed", receipt_pdf_url? }` |
-| POST | `/webhooks/paystack` | Paystack payload | Lead only. This is the **only** place a pledge becomes `paid` |
+| POST | `/webhooks/paystack` | Paystack payload, signed in `x-paystack-signature` | Lead only. This is the **only** public way a pledge becomes `paid`. Every event is re-verified with Paystack and settled once. `401 INVALID_SIGNATURE`; `502 PAYMENT_PROVIDER_ERROR` when Paystack can't be reached (Paystack retries) |
 
 ## Race day (owned by Lead)
 
@@ -85,7 +85,7 @@ While an endpoint is still a stub (Phase 0 to 2), it returns fake data and these
 | `POST /registrations`, `GET .../qr.png` | **Real since E4**: runners are saved. To see `PHONE_ALREADY_REGISTERED`, register the same phone twice. Get `category_id` from `GET /categories`. Registered runners don't appear in search or results until B3 and E9 |
 | `GET /categories` | Already real: reads the database (run the seed first). `slots_left` ignores registrations until B3 |
 | Runners, results, positions, streams | A simulated race of 240 runners (bibs `F0001`–`F0050`, `H0001`–`H0070`, `T0001`–`T0060`, `R0001`–`R0060`). It starts about 100 minutes in when the API starts and loops every 6.5 hours, so there are always finishers, runners on course, DNFs, runners who never started, stale trackers and runners without one |
-| `POST /sponsors/pledges` | Skips Paystack: `authorization_url` goes straight to `/sponsors/thank-you`. A company name containing "fail" ends `failed`, one containing "pending" stays `pending`, anything else is `paid`. PDF links open a placeholder PDF |
+| `POST /sponsors/pledges` | Still a stub until B2 (the Paystack side is real since E5). Skips Paystack: `authorization_url` goes straight to `/sponsors/thank-you`. A company name containing "fail" ends `failed`, one containing "pending" stays `pending`, anything else is `paid`. PDF links open a placeholder PDF |
 | Admin endpoints | Send `Authorization: Bearer dev-admin` (development only, until admin login exists) |
 | `POST /gps/positions` | Send `X-Gateway-Secret` with the value of `GATEWAY_SECRET` in `apps/api/.env` |
 | `POST /kit/assign`, `/kit/return` | `qr_token` can be a fake bib such as `R0005`. Trackers `TRK-0001`–`0030` are assigned, `TRK-0031`–`0039` are free, `TRK-0040` is lost |
