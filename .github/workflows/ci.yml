@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   web:
-    name: Web (lint, typecheck, build)
+    name: Web (lint, typecheck, test, build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -23,6 +23,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: pnpm test
       - run: pnpm build
         env:
           NEXT_TELEMETRY_DISABLED: 1

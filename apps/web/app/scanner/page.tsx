@@ -1,9 +1,18 @@
-// E7: Checkpoint scanner. Owner: Lead. See docs/tasks for acceptance criteria.
+// E7: Offline-first checkpoint scanner. Owner: Lead.
+import type { Metadata, Viewport } from "next";
+import ScannerLoader from "@/components/scanner/ScannerLoader";
+
+export const metadata: Metadata = {
+  title: "Checkpoint scanner · EkitiRun",
+  robots: { index: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0B6E4F",
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function Page() {
-  return (
-    <main className="mx-auto max-w-3xl p-4">
-      <h1 className="text-2xl font-bold">Checkpoint scanner</h1>
-      <p className="text-sm text-gray-500">E7 · coming soon</p>
-    </main>
-  );
+  return <ScannerLoader />;
 }

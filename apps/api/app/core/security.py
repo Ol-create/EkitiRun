@@ -1,4 +1,4 @@
-"""OTP hashing, phone-verification tokens and signed QR tokens. Owner: Lead (E3, E4)."""
+"""OTP hashing, verification tokens, QR tokens and scanner devices. Owner: Lead (E3, E4, E7)."""
 
 import base64
 import hashlib
@@ -99,3 +99,45 @@ def parse_qr_token(token: str) -> tuple[uuid.UUID, str]:
             if hmac.compare_digest(signature, _qr_signature(bib_number, runner_id)):
                 return runner_id, bib_number
     raise AppError(400, "QR_INVALID", "This QR code is not a valid EkitiRun bib.")
+
+
+# ---------------------------------------------------------------- checkpoint scanners (E7)
+
+SCANNER_TOKEN_TTL = timedelta(hours=24)
+_SCANNER_PURPOSE = "scanner"
+
+
+def hash_pin(pin: str) -> str:
+    """Keyed hash of a checkpoint PIN. Deterministic, so a PIN finds its checkpoint."""
+    message = f"checkpoint-pin:{pin}".encode()
+    return hmac.new(settings.jwt_secret.encode(), message, hashlib.sha256).hexdigest()
+
+
+def create_scanner_token(device_id: str, checkpoint_id: int, now: datetime | None = None) -> str:
+    now = now or datetime.now(UTC)
+    claims = {
+        "sub": device_id,
+        "cp": checkpoint_id,
+        "purpose": _SCANNER_PURPOSE,
+        "iat": now,
+        "exp": now + SCANNER_TOKEN_TTL,
+    }
+    return jwt.encode(claims, settings.jwt_secret, algorithm=_ALGORITHM)
+
+
+def parse_scanner_token(token: str) -> tuple[str, int]:
+    """(device_id, checkpoint_id), or 401 SCANNER_AUTH_REQUIRED."""
+    try:
+        claims = jwt.decode(
+            token,
+            settings.jwt_secret,
+            algorithms=[_ALGORITHM],
+            options={"require": ["sub", "exp", "purpose", "cp"]},
+        )
+    except jwt.InvalidTokenError:
+        raise AppError(
+            401, "SCANNER_AUTH_REQUIRED", "Scanner login expired. Enter the checkpoint PIN again."
+        ) from None
+    if claims.get("purpose") != _SCANNER_PURPOSE:
+        raise AppError(401, "SCANNER_AUTH_REQUIRED", "Not a scanner login.")
+    return str(claims["sub"]), int(claims["cp"])

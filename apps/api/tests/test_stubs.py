@@ -9,6 +9,7 @@ import uuid
 import pytest
 
 from app.core.config import settings
+from app.core.security import create_scanner_token
 from app.modules.gps import service as gps_service
 from app.stubs import race
 
@@ -142,7 +143,9 @@ async def test_scan_batch(client):
             {"client_id": bad, "qr_token": "garbage", "scanned_at": "2027-03-01T07:10:01Z"},
         ],
     }
-    results = (await client.post(f"{API}/scans/batch", json=body)).json()["results"]
+    headers = {"Authorization": f"Bearer {create_scanner_token('phone-1', 1)}"}
+    response = await client.post(f"{API}/scans/batch", json=body, headers=headers)
+    results = response.json()["results"]
     assert [r["status"] for r in results] == ["accepted", "invalid"]
 
 

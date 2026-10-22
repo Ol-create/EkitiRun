@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.errors import register_error_handlers
+from app.core.schemas import ErrorResponse
 from app.modules.auth.router import router as auth_router
 from app.modules.categories.router import router as categories_router
 from app.modules.files.router import router as files_router
@@ -13,12 +14,18 @@ from app.modules.registrations.router import router as registrations_router
 from app.modules.results.router import router as results_router
 from app.modules.route.router import router as route_router
 from app.modules.runners.router import router as runners_router
+from app.modules.scanner.router import router as scanner_router
 from app.modules.scans.router import router as scans_router
 from app.modules.sponsors.router import router as sponsors_router
 from app.modules.trackers.router import router as trackers_router
 from app.stubs.router import router as stub_files_router
 
-app = FastAPI(title="EkitiRun API", version="0.1.0")
+app = FastAPI(
+    title="EkitiRun API",
+    version="0.1.0",
+    # Document our real error shape (app/core/errors.py) instead of FastAPI's default 422.
+    responses={422: {"model": ErrorResponse, "description": "Validation error"}},
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -36,6 +43,7 @@ for router in (
     payments_router,
     route_router,
     results_router,
+    scanner_router,
     scans_router,
     gps_router,
     trackers_router,

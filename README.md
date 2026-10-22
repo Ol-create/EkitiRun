@@ -198,6 +198,15 @@ uv run ruff check .
 docker compose exec -e TEST_DATABASE_URL=postgresql+asyncpg://ekitirun:ekitirun@db:5432/ekitirun_test api sh -c "uv pip install --system pytest pytest-asyncio && pytest"
 ```
 
+## Checkpoint scanner (`/scanner`)
+
+Volunteers open `/scanner` on a phone, enter their checkpoint's 6-digit PIN, and scan bib QR codes (or type bib numbers). Every scan is saved on the phone first and uploaded every 10 s when there is signal, so scanning works with no network at all.
+
+- **Make the PINs** (once, after seeding; printed only once, so save them): `docker compose exec api python -m scripts.checkpoint_pins`. `--reset-all` replaces every PIN.
+- **Before the race**, each volunteer opens `/scanner` once *with signal* and logs in: that downloads the runner list and, in production builds, stores the page for offline use. After that the phone can be offline all day; a login lasts 24 hours.
+- **Phones need HTTPS** for the camera (browsers block it on plain `http://`, except `localhost`). The deployed site has HTTPS; for testing on a phone locally, use a tunnel such as `ngrok http 3000`.
+- Scans that couldn't be uploaded stay on the phone, even after logging out or closing the browser, and upload after logging in to the same checkpoint again.
+
 ## Background jobs and PDFs
 
 The `worker` service runs background jobs (ARQ, using Redis): sponsor invoices are rendered when a pledge is created and receipts when it is paid. Every 5 minutes it also renders any document that was missed. PDFs are stored in Postgres and served at `/api/v1/files/...`.

@@ -48,7 +48,9 @@ In Phase 0, Lead ships **stub versions** of every endpoint below that return fak
 | GET | `/route?category=FULL` | `{ category_code, length_km, route: GeoJSON LineString, checkpoints: [{ id, name, distance_km, lat, lng }] }`. Each category has its own course; `category` defaults to `FULL`. `404 CATEGORY_NOT_FOUND` |
 | GET | `/results?category=&gender=&limit=50&offset=0` | `{ items: [{ position, bib_number, full_name, gender, category_code, status: "started"\|"finished"\|"dnf", last_checkpoint, elapsed_seconds, finish_seconds? }], total }`. Finishers first by time, then runners still going (furthest first), then DNF. `limit` is at most 200 |
 | GET | `/stream/results` | Server-Sent Events. `event: scan` with data `{ bib_number, checkpoint_id, elapsed_seconds }` |
-| POST | `/scans/batch` | Scanner only. `{ device_id, checkpoint_id, scans: [{ client_id, qr_token, scanned_at }] }` (at most 500 scans). Returns `{ results: [{ client_id, status: "accepted"\|"duplicate"\|"invalid", bib_number? }] }` |
+| POST | `/scanner/login` | `{ pin, device_id }` (6-digit checkpoint PIN). Returns `{ token, expires_at, checkpoint: { id, code, name, distance_km, is_start, is_finish, category_codes } }`; the token lasts 24 h. `401 PIN_INVALID`, `429 PIN_RATE_LIMITED` after 10 wrong PINs per IP in 15 min |
+| GET | `/scanner/roster` | Scanner only. `{ checkpoint_id, generated_at, runners: [{ runner_id, bib_number, full_name, category_code }] }`: everyone on this checkpoint's course, so the phone can show names offline. `401 SCANNER_AUTH_REQUIRED` |
+| POST | `/scans/batch` | Scanner only (`Authorization: Bearer <token>`), for its own checkpoint (`403 WRONG_CHECKPOINT` otherwise). `{ device_id, checkpoint_id, scans: [{ client_id, qr_token, scanned_at, entry: "qr"\|"manual" }] }` (at most 500 scans; for `manual`, `qr_token` is the typed bib). Returns `{ results: [{ client_id, status: "accepted"\|"duplicate"\|"invalid", bib_number? }] }` |
 
 ## Live GPS tracking (owned by Lead, tracker inventory by Backend newbie)
 

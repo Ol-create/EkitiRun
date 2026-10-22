@@ -13,9 +13,18 @@ NigerianPhone = Annotated[
 ]
 
 
+class FieldError(BaseModel):
+    loc: list[str | int] = Field(description='Where the problem is, e.g. ["body", "phone"]')
+    msg: str
+    type: str
+
+
 class ErrorResponse(BaseModel):
     detail: str
     code: str
+    errors: list[FieldError] | None = Field(
+        default=None, description="Per-field problems, only on 422 VALIDATION_ERROR"
+    )
 
 
 def error_responses(*status_codes: int) -> dict[int | str, dict[str, Any]]:
