@@ -1,35 +1,184 @@
-"""Database and business logic for scans. Routers call this; it never imports FastAPI.
+"""Saving checkpoint scans uploaded by scanner phones. Owner: Lead (E8).
 
-STUB(E8): nothing is saved. A real signed QR token (from registration, E4) or a
-fake runner's bib (e.g. H0004) is accepted; anything else is `invalid`.
+Each scan in a batch gets its own answer:
+- accepted: saved. If the runner was already scanned here, the EARLIEST scan
+  wins (comparing clock-corrected times), so a later re-scan never moves a
+  split, but an earlier scan from a slower-syncing phone does replace it.
+- duplicate: nothing to do (a retried upload, or a later re-scan).
+- invalid: bad_qr / unknown_bib / wrong_course.
+
+Clock drift: the phone sends its own clock reading (`sent_at`) with each
+upload. Server time minus that reading is stored on the device and on every
+scan in the batch (`clock_offset_ms`), and phones off by more than 2 minutes
+are flagged in GET /admin/scanner-devices.
 """
+
+import logging
+import re
+import uuid
+from datetime import UTC, datetime
+from typing import Any
+
+from sqlalchemy import func, literal_column, select, text
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.errors import AppError
 from app.core.security import parse_qr_token
-from app.modules.scans.schemas import ScanBatchIn, ScanBatchOut, ScanResult
-from app.stubs import race
+from app.models import Category, Checkpoint, Runner, Scan, ScannerDevice
+from app.models.scanner_device import CLOCK_TOLERANCE_MS
+from app.modules.scans.schemas import InvalidReason, ScanBatchIn, ScanBatchOut, ScanIn, ScanResult
+
+log = logging.getLogger("ekitirun.scans")
+TYPED_BIB = re.compile(r"^([A-Z])\s*0*(\d{1,4})$")
 
 
-def _bib_for_token(token: str) -> str | None:
+def _typed_bib(raw: str) -> str | None:
+    match = TYPED_BIB.match(raw.strip().upper())
+    return f"{match[1]}{int(match[2]):04d}" if match else None
+
+
+async def _record_device(
+    session: AsyncSession, device_id: str, checkpoint_id: int, offset_ms: int | None, count: int
+) -> None:
+    stmt = insert(ScannerDevice).values(
+        device_id=device_id,
+        checkpoint_id=checkpoint_id,
+        last_seen_at=func.now(),
+        clock_offset_ms=offset_ms,
+        scans_uploaded=count,
+    )
+    await session.execute(
+        stmt.on_conflict_do_update(
+            index_elements=[ScannerDevice.device_id],
+            set_={
+                "checkpoint_id": stmt.excluded.checkpoint_id,
+                "last_seen_at": stmt.excluded.last_seen_at,
+                # keep the last known offset if this upload didn't send one
+                "clock_offset_ms": func.coalesce(
+                    stmt.excluded.clock_offset_ms, ScannerDevice.clock_offset_ms
+                ),
+                "scans_uploaded": ScannerDevice.scans_uploaded + stmt.excluded.scans_uploaded,
+            },
+        )
+    )
+    if offset_ms is not None and abs(offset_ms) > CLOCK_TOLERANCE_MS:
+        log.warning(
+            "Scanner %s at checkpoint %s: clock is off by %.0f s",
+            device_id, checkpoint_id, offset_ms / 1000,
+        )  # fmt: skip
+
+
+def _corrected(table: Any) -> ColumnElement[datetime]:
+    """scanned_at + clock offset, as a SQL expression (offset 0 when unknown)."""
+    return table.scanned_at + func.coalesce(table.clock_offset_ms, 0) * text(
+        "interval '1 millisecond'"
+    )
+
+
+async def _save(
+    session: AsyncSession,
+    scan: ScanIn,
+    runner_id: uuid.UUID,
+    checkpoint_id: int,
+    device_id: str,
+    offset_ms: int | None,
+) -> bool:
+    """Insert, or replace a later scan of this runner here. True if saved."""
+    stmt = insert(Scan).values(
+        id=uuid.uuid4(),
+        client_id=scan.client_id,
+        runner_id=runner_id,
+        checkpoint_id=checkpoint_id,
+        device_id=device_id,
+        scanned_at=scan.scanned_at,
+        clock_offset_ms=offset_ms,
+        entry=scan.entry,
+    )
+    upsert: Any = stmt.on_conflict_do_update(
+        constraint="uq_scans_runner_checkpoint",
+        set_={
+            "client_id": stmt.excluded.client_id,
+            "device_id": stmt.excluded.device_id,
+            "scanned_at": stmt.excluded.scanned_at,
+            "clock_offset_ms": stmt.excluded.clock_offset_ms,
+            "entry": stmt.excluded.entry,
+            "received_at": func.now(),
+        },
+        where=_corrected(stmt.excluded) < _corrected(Scan.__table__.c),
+    ).returning(literal_column("1"))
     try:
-        return parse_qr_token(token)[1]
-    except AppError:
-        pass
-    r = race.runner_by_bib(token)
-    return r.bib_number if r else None
+        async with session.begin_nested():  # a clash on client_id only undoes this scan
+            return (await session.execute(upsert)).first() is not None
+    except IntegrityError:
+        return False  # the same client_id arrived twice at once: a retry
 
 
-async def ingest_batch(body: ScanBatchIn) -> ScanBatchOut:
-    results = []
-    seen: set[str] = set()
+async def ingest_batch(session: AsyncSession, device_id: str, body: ScanBatchIn) -> ScanBatchOut:
+    checkpoint = await session.get(Checkpoint, body.checkpoint_id)
+    if checkpoint is None:
+        raise AppError(401, "SCANNER_AUTH_REQUIRED", "This checkpoint no longer exists.")
+
+    offset_ms = None
+    if body.sent_at is not None:
+        offset_ms = round((datetime.now(UTC) - body.sent_at).total_seconds() * 1000)
+    await _record_device(session, device_id, checkpoint.id, offset_ms, len(body.scans))
+
+    # Work out which runner each scan is for.
+    wanted: list[tuple[ScanIn, uuid.UUID | None, str | None, InvalidReason | None]] = []
     for scan in body.scans:
-        bib = _bib_for_token(scan.qr_token)
-        if bib is None:
-            status = "invalid"
-        elif bib in seen:
-            status = "duplicate"
+        if scan.entry == "qr":
+            try:
+                token_runner_id, token_bib = parse_qr_token(scan.qr_token)
+                wanted.append((scan, token_runner_id, token_bib, None))
+            except AppError:
+                wanted.append((scan, None, None, "bad_qr"))
         else:
-            status = "accepted"
-            seen.add(bib)
-        results.append(ScanResult(client_id=scan.client_id, status=status, bib_number=bib))  # type: ignore[arg-type]
+            typed = _typed_bib(scan.qr_token)
+            wanted.append((scan, None, typed, None if typed else "unknown_bib"))
+
+    bibs = {bib for _, _, bib, reason in wanted if bib and not reason}
+    runners = {
+        bib: (rid, route_id)
+        for rid, bib, route_id in await session.execute(
+            select(Runner.id, Runner.bib_number, Category.route_id)
+            .join(Category, Category.id == Runner.category_id)
+            .where(Runner.bib_number.in_(bibs))
+        )
+    }
+    already = set(
+        await session.scalars(
+            select(Scan.client_id).where(Scan.client_id.in_([s.client_id for s in body.scans]))
+        )
+    )
+
+    results = []
+    for scan, qr_runner_id, bib, reason in wanted:
+        found = runners.get(bib) if bib else None
+        if reason is None and (found is None or (qr_runner_id and found[0] != qr_runner_id)):
+            reason = "unknown_bib"
+        if reason is None and found and found[1] != checkpoint.route_id:
+            reason = "wrong_course"
+        if reason is not None or found is None:
+            results.append(
+                ScanResult(
+                    client_id=scan.client_id, status="invalid", bib_number=bib, reason=reason
+                )
+            )
+            continue
+        if scan.client_id in already:
+            saved = False
+        else:
+            saved = await _save(session, scan, found[0], checkpoint.id, device_id, offset_ms)
+        results.append(
+            ScanResult(
+                client_id=scan.client_id,
+                status="accepted" if saved else "duplicate",
+                bib_number=bib,
+            )
+        )
+
+    await session.commit()
     return ScanBatchOut(results=results)

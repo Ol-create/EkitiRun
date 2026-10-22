@@ -40,3 +40,17 @@ class RosterOut(BaseModel):
     checkpoint_id: int
     generated_at: datetime
     runners: list[RosterRunner]
+
+
+class ScannerDeviceOut(BaseModel):
+    device_id: str
+    checkpoint_id: int
+    checkpoint_name: str
+    category_codes: list[str]
+    first_seen_at: datetime
+    last_seen_at: datetime
+    scans_uploaded: int
+    clock_offset_s: float | None = Field(
+        description="Server time minus the phone's time at its last upload, in seconds"
+    )
+    clock_flagged: bool = Field(description="True when the clock is off by more than 2 minutes")

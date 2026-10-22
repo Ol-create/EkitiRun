@@ -43,6 +43,7 @@ export function batchSender(session: ScannerSession, deviceId: string): SendBatc
       body: {
         device_id: deviceId,
         checkpoint_id: session.checkpoint.id,
+        sent_at: new Date().toISOString(), // lets the server measure this phone's clock drift
         scans: scans.map((s) => ({
           client_id: s.clientId,
           qr_token: s.qrToken,

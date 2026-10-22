@@ -50,7 +50,8 @@ In Phase 0, Lead ships **stub versions** of every endpoint below that return fak
 | GET | `/stream/results` | Server-Sent Events. `event: scan` with data `{ bib_number, checkpoint_id, elapsed_seconds }` |
 | POST | `/scanner/login` | `{ pin, device_id }` (6-digit checkpoint PIN). Returns `{ token, expires_at, checkpoint: { id, code, name, distance_km, is_start, is_finish, category_codes } }`; the token lasts 24 h. `401 PIN_INVALID`, `429 PIN_RATE_LIMITED` after 10 wrong PINs per IP in 15 min |
 | GET | `/scanner/roster` | Scanner only. `{ checkpoint_id, generated_at, runners: [{ runner_id, bib_number, full_name, category_code }] }`: everyone on this checkpoint's course, so the phone can show names offline. `401 SCANNER_AUTH_REQUIRED` |
-| POST | `/scans/batch` | Scanner only (`Authorization: Bearer <token>`), for its own checkpoint (`403 WRONG_CHECKPOINT` otherwise). `{ device_id, checkpoint_id, scans: [{ client_id, qr_token, scanned_at, entry: "qr"\|"manual" }] }` (at most 500 scans; for `manual`, `qr_token` is the typed bib). Returns `{ results: [{ client_id, status: "accepted"\|"duplicate"\|"invalid", bib_number? }] }` |
+| GET | `/scanner/devices` | Admin only. `[{ device_id, checkpoint_id, checkpoint_name, category_codes, first_seen_at, last_seen_at, scans_uploaded, clock_offset_s, clock_flagged }]`: every scanner phone, phones whose clock is off by more than 2 minutes first |
+| POST | `/scans/batch` | Scanner only (`Authorization: Bearer <token>`), for its own checkpoint (`403 WRONG_CHECKPOINT` otherwise). `{ device_id, checkpoint_id, sent_at, scans: [{ client_id, qr_token, scanned_at, entry: "qr"\|"manual" }] }` (at most 500 scans; for `manual`, `qr_token` is the typed bib; `sent_at` is the phone's clock at upload, used to measure clock drift). Returns `{ results: [{ client_id, status: "accepted"\|"duplicate"\|"invalid", bib_number?, reason? }] }`. `accepted`: saved, or it replaced a later scan of that runner here (the earliest clock-corrected time wins). `duplicate`: already saved (a retry or a later re-scan): treat as done. `invalid` with `reason`: `bad_qr` (edited or damaged code), `unknown_bib`, `wrong_course` (the runner's race doesn't pass this checkpoint) |
 
 ## Live GPS tracking (owned by Lead, tracker inventory by Backend newbie)
 
@@ -92,4 +93,4 @@ While an endpoint is still a stub (Phase 0 to 2), it returns fake data and these
 | Admin endpoints | Send `Authorization: Bearer dev-admin` (development only, until admin login exists) |
 | `POST /gps/positions` | Send `X-Gateway-Secret` with the value of `GATEWAY_SECRET` in `apps/api/.env` |
 | `POST /kit/assign`, `/kit/return` | `qr_token` can be a fake bib such as `R0005`. Trackers `TRK-0001`–`0030` are assigned, `TRK-0031`–`0039` are free, `TRK-0040` is lost |
-| `POST /scans/batch` | `qr_token` can be a real runner's QR token or a fake bib; anything else is `invalid` |
+| `POST /scans/batch` | **Real since E8**: scans are saved for registered runners only (fake-race bibs are `invalid`) |

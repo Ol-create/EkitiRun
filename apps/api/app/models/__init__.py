@@ -11,6 +11,7 @@ from app.models.payment import Payment
 from app.models.route import Route
 from app.models.runner import Runner
 from app.models.scan import Scan
+from app.models.scanner_device import ScannerDevice
 from app.models.sponsor import Pledge, Sponsor, SponsorTier
 from app.models.stored_file import StoredFile
 
@@ -24,6 +25,7 @@ __all__ = [
     "Route",
     "Runner",
     "Scan",
+    "ScannerDevice",
     "Sponsor",
     "SponsorTier",
     "StoredFile",

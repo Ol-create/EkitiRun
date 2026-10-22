@@ -340,6 +340,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/scanner/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Devices
+         * @description Admin: scanner phones, with their last upload and whether their clock is off.
+         */
+        get: operations["list_devices_api_v1_scanner_devices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/scans/batch": {
         parameters: {
             query?: never;
@@ -983,6 +1003,11 @@ export interface components {
             checkpoint_id: number;
             /** Scans */
             scans: components["schemas"]["ScanIn"][];
+            /**
+             * Sent At
+             * @description The phone's clock when uploading. Lets the server measure clock drift.
+             */
+            sent_at?: string | null;
         };
         /** ScanBatchOut */
         ScanBatchOut: {
@@ -1024,11 +1049,50 @@ export interface components {
             client_id: string;
             /**
              * Status
+             * @description accepted: saved (or replaced a later scan of the same runner here). duplicate: already saved, nothing to do. invalid: see `reason`.
              * @enum {string}
              */
             status: "accepted" | "duplicate" | "invalid";
             /** Bib Number */
             bib_number?: string | null;
+            /**
+             * Reason
+             * @description Only for invalid: bad_qr (forged or damaged code), unknown_bib, wrong_course (the runner's race doesn't pass this checkpoint)
+             */
+            reason?: ("bad_qr" | "unknown_bib" | "wrong_course") | null;
+        };
+        /** ScannerDeviceOut */
+        ScannerDeviceOut: {
+            /** Device Id */
+            device_id: string;
+            /** Checkpoint Id */
+            checkpoint_id: number;
+            /** Checkpoint Name */
+            checkpoint_name: string;
+            /** Category Codes */
+            category_codes: string[];
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /** Scans Uploaded */
+            scans_uploaded: number;
+            /**
+             * Clock Offset S
+             * @description Server time minus the phone's time at its last upload, in seconds
+             */
+            clock_offset_s: number | null;
+            /**
+             * Clock Flagged
+             * @description True when the clock is off by more than 2 minutes
+             */
+            clock_flagged: boolean;
         };
         /** ScannerLoginIn */
         ScannerLoginIn: {
@@ -1994,6 +2058,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RosterOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_devices_api_v1_scanner_devices_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScannerDeviceOut"][];
                 };
             };
             /** @description Unauthorized */

@@ -4,12 +4,9 @@ When a stub is replaced by a real implementation, move its checks into that
 module's own tests and delete them here.
 """
 
-import uuid
-
 import pytest
 
 from app.core.config import settings
-from app.core.security import create_scanner_token
 from app.modules.gps import service as gps_service
 from app.stubs import race
 
@@ -131,22 +128,6 @@ async def test_results(client):
     assert [i["position"] for i in body["items"]] == [1, 2, 3, 4, 5]
     women = (await client.get(f"{API}/results", params={"gender": "F"})).json()["items"]
     assert all(i["gender"] == "F" for i in women)
-
-
-async def test_scan_batch(client):
-    good, bad = str(uuid.uuid4()), str(uuid.uuid4())
-    body = {
-        "device_id": "phone-1",
-        "checkpoint_id": 1,
-        "scans": [
-            {"client_id": good, "qr_token": "H0004", "scanned_at": "2027-03-01T07:10:00Z"},
-            {"client_id": bad, "qr_token": "garbage", "scanned_at": "2027-03-01T07:10:01Z"},
-        ],
-    }
-    headers = {"Authorization": f"Bearer {create_scanner_token('phone-1', 1)}"}
-    response = await client.post(f"{API}/scans/batch", json=body, headers=headers)
-    results = response.json()["results"]
-    assert [r["status"] for r in results] == ["accepted", "invalid"]
 
 
 # ---------------------------------------------------------------- GPS, trackers, kit

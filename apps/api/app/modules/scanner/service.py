@@ -16,11 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import security
 from app.core.errors import AppError
-from app.models import Category, Checkpoint, Runner
+from app.models import Category, Checkpoint, Runner, ScannerDevice
 from app.modules.scanner.schemas import (
     CheckpointInfo,
     RosterOut,
     RosterRunner,
+    ScannerDeviceOut,
     ScannerLoginOut,
 )
 
@@ -90,3 +91,33 @@ async def roster(session: AsyncSession, checkpoint_id: int) -> RosterOut:
             for rid, bib, first, last, code in rows
         ],
     )
+
+
+async def list_devices(session: AsyncSession) -> list[ScannerDeviceOut]:
+    """Every phone that has uploaded scans, flagged clocks first, then most recent."""
+    rows = (
+        await session.execute(
+            select(ScannerDevice, Checkpoint).join(
+                Checkpoint, Checkpoint.id == ScannerDevice.checkpoint_id
+            )
+        )
+    ).all()
+    out = []
+    for device, checkpoint in rows:
+        info = await checkpoint_info(session, checkpoint)
+        out.append(
+            ScannerDeviceOut(
+                device_id=device.device_id,
+                checkpoint_id=checkpoint.id,
+                checkpoint_name=checkpoint.name,
+                category_codes=info.category_codes,
+                first_seen_at=device.first_seen_at,
+                last_seen_at=device.last_seen_at,
+                scans_uploaded=device.scans_uploaded,
+                clock_offset_s=None
+                if device.clock_offset_ms is None
+                else round(device.clock_offset_ms / 1000, 1),
+                clock_flagged=device.clock_flagged,
+            )
+        )
+    return sorted(out, key=lambda d: (not d.clock_flagged, -d.last_seen_at.timestamp()))

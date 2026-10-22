@@ -4,14 +4,15 @@
   creates a duplicate.
 - One scan per runner per checkpoint. When a runner is scanned twice, E8 keeps
   the earliest `scanned_at`.
-- `scanned_at` is the phone's clock; `received_at` is the server's, so clock
-  drift can be detected (E8).
+- `scanned_at` is the phone's clock; `received_at` is the server's.
+  `clock_offset_ms` is how far the phone's clock was behind the server's when
+  it uploaded (server minus phone), so E9 can use `scanned_at + offset`.
 """
 
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, UUIDPk
@@ -31,3 +32,5 @@ class Scan(UUIDPk, Base):
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    clock_offset_ms: Mapped[int | None] = mapped_column(Integer)
+    entry: Mapped[str] = mapped_column(String(8), default="qr", server_default="qr")

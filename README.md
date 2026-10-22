@@ -206,6 +206,7 @@ Volunteers open `/scanner` on a phone, enter their checkpoint's 6-digit PIN, and
 - **Before the race**, each volunteer opens `/scanner` once *with signal* and logs in: that downloads the runner list and, in production builds, stores the page for offline use. After that the phone can be offline all day; a login lasts 24 hours.
 - **Phones need HTTPS** for the camera (browsers block it on plain `http://`, except `localhost`). The deployed site has HTTPS; for testing on a phone locally, use a tunnel such as `ngrok http 3000`.
 - Scans that couldn't be uploaded stay on the phone, even after logging out or closing the browser, and upload after logging in to the same checkpoint again.
+- **Phone clocks:** each upload measures how far the phone's clock is off, and timing corrects for it. Phones off by more than 2 minutes are listed first in `GET /api/v1/scanner/devices` (admin): ask that volunteer to turn on automatic date and time.
 
 ## Background jobs and PDFs
 
