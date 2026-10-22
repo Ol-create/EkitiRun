@@ -1,4 +1,5 @@
 import json
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -100,3 +101,28 @@ def test_production_accepts_safe_settings():
         termii_api_key="live-key",
         _env_file=None,
     )
+
+
+def test_qr_token_round_trip():
+    runner_id = uuid.uuid4()
+    token = security.create_qr_token("H0042", runner_id)
+
+    assert token.startswith("R1.H0042.")
+    assert security.parse_qr_token(token) == (runner_id, "H0042")
+    assert len(token) <= 64  # keeps the QR small and quick to scan
+
+
+def test_edited_qr_tokens_are_rejected():
+    runner_id = uuid.uuid4()
+    token = security.create_qr_token("H0042", runner_id)
+    forged = [
+        token.replace("H0042", "H0043"),
+        token.replace(runner_id.hex, uuid.uuid4().hex),
+        token[:-2] + ("AA" if not token.endswith("AA") else "BB"),
+        "H0042",
+        "",
+    ]
+    for bad in forged:
+        with pytest.raises(AppError) as exc:
+            security.parse_qr_token(bad)
+        assert exc.value.code == "QR_INVALID"

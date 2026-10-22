@@ -1,18 +1,20 @@
 """Database and business logic for scans. Routers call this; it never imports FastAPI.
 
-STUB(E8): nothing is saved. A `qr_token` that is a fake runner's bib (e.g. H0004)
-or `STUB:<runner_id>` is accepted; anything else is `invalid`.
+STUB(E8): nothing is saved. A real signed QR token (from registration, E4) or a
+fake runner's bib (e.g. H0004) is accepted; anything else is `invalid`.
 """
 
+from app.core.errors import AppError
+from app.core.security import parse_qr_token
 from app.modules.scans.schemas import ScanBatchIn, ScanBatchOut, ScanResult
 from app.stubs import race
 
 
 def _bib_for_token(token: str) -> str | None:
-    if token.startswith("STUB:"):
-        rid = token.removeprefix("STUB:")
-        r = next((x for x in race.runners() if str(x.runner_id) == rid), None)
-        return r.bib_number if r else None
+    try:
+        return parse_qr_token(token)[1]
+    except AppError:
+        pass
     r = race.runner_by_bib(token)
     return r.bib_number if r else None
 

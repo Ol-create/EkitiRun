@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated, Literal, Self
 
 from pydantic import field_validator, model_validator
@@ -27,6 +28,10 @@ class Settings(BaseSettings):
     # Leave empty to get random codes (printed in the API log with the console provider).
     otp_dev_code: str | None = "123456"
 
+    # Race day, used for the minimum-age rule (age on race day). Until it is set,
+    # ages are checked against today's date.
+    race_date: date | None = None
+
     # Shared secret the Traccar GPS gateway sends in X-Gateway-Secret (E13).
     gateway_secret: str = INSECURE_DEFAULT
     # Development-only admin token, used until real admin auth exists.
@@ -45,9 +50,9 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
 
-    @field_validator("otp_dev_code", mode="before")
+    @field_validator("otp_dev_code", "race_date", mode="before")
     @classmethod
-    def empty_dev_code_is_none(cls, v):
+    def empty_is_none(cls, v):
         return v or None
 
     @model_validator(mode="after")

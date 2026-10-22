@@ -137,6 +137,7 @@ Open http://localhost:3000.
 | `PAYSTACK_SECRET_KEY` | `sk_test_xxx` | Paystack key. Use test keys (`sk_test_...`) locally |
 | `SMS_PROVIDER` | `console` | `console` prints SMS to the API log instead of sending; production must use `termii` |
 | `TERMII_API_KEY` | | Termii SMS key. Leave empty locally |
+| `RACE_DATE` | `2027-03-06` | Race day, for the minimum-age rule. Empty = today. A category's gun start time overrides it |
 | `OTP_DEV_CODE` | `123456` | Development only: every OTP is this code. Empty = random codes, printed in the API log |
 | `TERMII_SENDER_ID` | `EkitiRun` | SMS sender name |
 | `CORS_ORIGINS` | `http://localhost:3000` | Allowed frontend origins, comma-separated: `http://localhost:3000,https://ekitirun.ng` |

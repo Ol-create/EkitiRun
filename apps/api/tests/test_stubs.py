@@ -9,71 +9,12 @@ import uuid
 import pytest
 
 from app.core.config import settings
-from app.core.security import create_verification_token
 from app.modules.gps import service as gps_service
 from app.stubs import race
 
 API = "/api/v1"
 ADMIN = {"Authorization": "Bearer dev-admin"}
 PHONE = "+2348031234567"
-
-
-# ---------------------------------------------------- registration (OTP is real: see auth tests)
-
-
-def registration(token: str, **overrides):
-    return {
-        "verification_token": token,
-        "first_name": "Ada",
-        "last_name": "Okafor",
-        "gender": "F",
-        "date_of_birth": "1995-04-12",
-        "email": "ada@example.com",
-        "category_id": 2,
-        "emergency_contact_name": "Chidi Okafor",
-        "emergency_contact_phone": "+2348099998888",
-        "tracking_consent": True,
-    } | overrides
-
-
-async def verify(client, phone=PHONE) -> str:
-    """A real signed verification token, as POST /auth/otp/verify would return."""
-    return create_verification_token(phone)
-
-
-async def test_registration_and_qr(client):
-    response = await client.post(f"{API}/registrations", json=registration(await verify(client)))
-    assert response.status_code == 201
-    body = response.json()
-    assert body["bib_number"].startswith("H")
-    assert body["category"] == {"id": 2, "code": "HALF", "name": "Half Marathon"}
-
-    qr = await client.get(body["qr_png_url"].removeprefix("http://localhost:8000"))
-    assert qr.status_code == 200
-    assert qr.headers["content-type"] == "image/png"
-    assert qr.content.startswith(b"\x89PNG")
-
-
-@pytest.mark.parametrize(
-    ("phone", "overrides", "status", "code"),
-    [
-        (PHONE, {"tracking_consent": False}, 422, "TRACKING_CONSENT_REQUIRED"),
-        (PHONE, {"category_id": 99}, 404, "CATEGORY_NOT_FOUND"),
-        ("+2348031230000", {}, 409, "PHONE_ALREADY_REGISTERED"),
-        ("+2348031239999", {}, 409, "CATEGORY_FULL"),
-    ],
-)
-async def test_registration_errors(client, phone, overrides, status, code):
-    body = registration(await verify(client, phone), **overrides)
-    response = await client.post(f"{API}/registrations", json=body)
-    assert response.status_code == status
-    assert response.json()["code"] == code
-
-
-async def test_registration_needs_verified_phone(client):
-    response = await client.post(f"{API}/registrations", json=registration("not-a-token"))
-    assert response.status_code == 401
-    assert response.json()["code"] == "VERIFICATION_INVALID"
 
 
 # ---------------------------------------------------------------- runners
