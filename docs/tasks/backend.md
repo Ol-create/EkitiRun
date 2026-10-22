@@ -42,7 +42,7 @@ Module layout (copied from `categories/`): `router.py` (endpoints), `schemas.py`
 **Acceptance criteria**
 - [ ] `POST /sponsors/pledges` validates that **exactly one** of `tier_id` or `custom_amount_kobo` is sent (custom amount at least 1,000,000 kobo, i.e. ₦10,000), plus the email format and a Nigerian phone number.
 - [ ] Creates the `sponsor` and `pledge` rows (status `pending`), then calls Lead's `payments.service.start_checkout(pledge, sponsor.email)` and returns its `reference` and `authorization_url`. Create the pledge with `reference=payments.service.new_reference()`. If `start_checkout` raises `502 PAYMENT_PROVIDER_ERROR`, let it through (don't save a pledge with no checkout).
-- [ ] Enqueues the invoice job with `await enqueue("render_invoice", pledge_id)`.
+- [ ] After saving, queues the invoice with `await enqueue("render_invoice", pledge.id)` (`from app.workers.queue import enqueue`). The worker fills in `invoice_pdf_url` a moment later, so it can be empty in the first response; the thank-you page shows it once it's there.
 - [ ] `GET /sponsors/pledges/{reference}` returns the status and receipt URL, and `404` for an unknown reference. Call `await payments.service.sync_pledge(session, reference)` first, so the status is fresh even if Paystack's webhook is late.
 - [ ] You never set the status to `paid`. Only Lead's webhook does that.
 
@@ -60,7 +60,7 @@ Module layout (copied from `categories/`): `router.py` (endpoints), `schemas.py`
 ## B4: PDF templates and tests (2 pts)
 
 **Acceptance criteria**
-- [ ] `templates/pdf/invoice.html` and `receipt.html` (Jinja2 + CSS for WeasyPrint). Include:
+- [ ] Design `templates/pdf/invoice.html` and `receipt.html` (Jinja2 + CSS for WeasyPrint). Lead's starter versions already have every field and work end to end: your job is the look (logo, layout, colours, a proper PAID stamp). The fields you can use are listed at the top of `app/documents/pledges.py`. Include:
   - The race logo.
   - Invoice or receipt number.
   - Date.
@@ -69,7 +69,7 @@ Module layout (copied from `categories/`): `router.py` (endpoints), `schemas.py`
   - Amount in ₦.
   - Organiser bank details (invoice only).
   - "PAID" stamp and the Paystack reference (receipt only).
-- [ ] Preview them with Lead's `scripts/render_pdf_preview.py` and attach both PDFs to your PR.
+- [ ] Preview them with `python -m scripts.render_pdf_preview` (from `apps/api`; no database needed), which writes `pdf-preview/invoice.pdf` and `receipt.pdf`. Attach both PDFs to your PR.
 - [ ] pytest coverage for B1–B3:
   - Success cases.
   - Validation errors.

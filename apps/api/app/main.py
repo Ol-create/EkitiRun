@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.core.errors import register_error_handlers
 from app.modules.auth.router import router as auth_router
 from app.modules.categories.router import router as categories_router
+from app.modules.files.router import router as files_router
 from app.modules.gps.router import router as gps_router
 from app.modules.kit.router import router as kit_router
 from app.modules.payments.router import router as payments_router
@@ -39,6 +40,7 @@ for router in (
     gps_router,
     trackers_router,
     kit_router,
+    files_router,
 ):
     app.include_router(router, prefix="/api/v1")
 

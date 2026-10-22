@@ -37,6 +37,7 @@ from app.modules.payments.gateway import (
     get_gateway,
     signature_is_valid,
 )
+from app.workers.queue import enqueue
 
 log = logging.getLogger("ekitirun.payments")
 
@@ -119,10 +120,11 @@ async def settle(
     if outcome == "success":
         pledge.status = "paid"
         pledge.paid_at = tx.paid_at or datetime.now(UTC)
-        # TODO(E6): enqueue("render_receipt", pledge.id) once the PDF worker exists.
     elif outcome == "failed" and pledge.status == "pending":
         pledge.status = "failed"
     await session.commit()
+    if outcome == "success":
+        await enqueue("render_receipt", pledge.id)  # after commit, so the worker sees `paid`
     return pledge
 
 

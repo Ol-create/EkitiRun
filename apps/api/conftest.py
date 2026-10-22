@@ -3,6 +3,7 @@
 - `client`: an async HTTP client for the app. Use it for every API test.
 - `redis` and `sms` (automatic in every test): an in-memory Redis and a fake SMS
   sender. Use `sms.last_code_for(phone)` to read an OTP that was "sent".
+- `queued` (automatic): background jobs are recorded, not run: `[("render_receipt", [id])]`.
 - `session`: a database session for tests that need Postgres. Each test runs
   inside a transaction that is rolled back afterwards, so tests never see each
   other's data. Requesting `session` (or `db_client`) makes the app use it too.
@@ -28,6 +29,7 @@ from app.core.redis import get_redis
 from app.core.sms import get_sms_sender
 from app.main import app
 from app.models import Base
+from app.workers import queue
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
@@ -66,6 +68,18 @@ def sms() -> Iterator[FakeSms]:
     app.dependency_overrides[get_sms_sender] = lambda: fake
     yield fake
     app.dependency_overrides.pop(get_sms_sender, None)
+
+
+@pytest.fixture(autouse=True)
+def queued(monkeypatch) -> list[tuple[str, list[str]]]:
+    """Every test records background jobs instead of queuing them: [(job, args), ...]."""
+    jobs: list[tuple[str, list[str]]] = []
+
+    async def record(job: str, job_args: list[str], job_id: str) -> None:
+        jobs.append((job, job_args))
+
+    monkeypatch.setattr(queue, "_push", record)
+    return jobs
 
 
 @pytest.fixture

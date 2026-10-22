@@ -15,3 +15,6 @@ next-env.d.ts
 # Secrets
 .env
 .env.local
+
+# PDF previews (scripts/render_pdf_preview.py)
+apps/api/pdf-preview/

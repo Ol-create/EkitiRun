@@ -156,7 +156,7 @@ async def test_bad_signature_is_rejected(db_client, session, gateway):
     assert pledge.status == "pending"
 
 
-async def test_charge_success_marks_pledge_paid(db_client, session, gateway):
+async def test_charge_success_marks_pledge_paid(db_client, session, gateway, queued):
     pledge = await make_pledge(session)
     body, headers = signed("charge.success", pledge.reference)
 
@@ -170,6 +170,7 @@ async def test_charge_success_marks_pledge_paid(db_client, session, gateway):
     assert (payment.event, payment.status, payment.amount_kobo) == (
         "charge.success", "success", AMOUNT,
     )  # fmt: skip
+    assert queued == [("render_receipt", [str(pledge.id)])]  # E6 makes the receipt
 
 
 async def test_same_webhook_twice_settles_once(db_client, session, gateway):
@@ -196,7 +197,7 @@ async def test_webhook_body_is_not_trusted(db_client, session, gateway):
     assert pledge.status == "failed"
 
 
-async def test_wrong_amount_is_not_marked_paid(db_client, session, gateway):
+async def test_wrong_amount_is_not_marked_paid(db_client, session, gateway, queued):
     gateway.amount = 100  # ₦1 paid against a ₦2m pledge
     pledge = await make_pledge(session)
     body, headers = signed("charge.success", pledge.reference)
@@ -207,6 +208,7 @@ async def test_wrong_amount_is_not_marked_paid(db_client, session, gateway):
     assert pledge.status == "pending"
     [payment] = await payments_for(session, pledge)
     assert payment.status == "amount_mismatch"
+    assert queued == []
 
 
 async def test_paystack_down_asks_for_a_retry(db_client, session, gateway):

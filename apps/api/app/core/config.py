@@ -32,6 +32,15 @@ class Settings(BaseSettings):
     # Leave empty to get random codes (printed in the API log with the console provider).
     otp_dev_code: str | None = "123456"
 
+    # Shown on sponsor invoices and receipts (E6). Placeholders until the organisers confirm.
+    organiser_name: str = "Ekiti Marathon Organising Committee"
+    organiser_address: str = "Ado-Ekiti, Ekiti State, Nigeria"
+    organiser_email: str = "sponsors@ekitirun.ng"
+    bank_name: str = "Bank name (set BANK_NAME)"
+    bank_account_name: str = "Account name (set BANK_ACCOUNT_NAME)"
+    bank_account_number: str = "0000000000"
+    invoice_due_days: int = 14
+
     # Race day, used for the minimum-age rule (age on race day). Until it is set,
     # ages are checked against today's date.
     race_date: date | None = None

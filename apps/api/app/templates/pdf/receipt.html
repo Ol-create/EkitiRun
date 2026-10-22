@@ -1,1 +1,56 @@
-<!-- B4 (Backend): sponsor receipt template. -->
+<!--
+  Sponsor receipt. Design: Backend (B4). Fields: see the docstring of app/documents/pledges.py.
+  Preview: python -m scripts.render_pdf_preview   (writes pdf-preview/receipt.pdf)
+  This starter version has every required field but no design yet: add the race
+  logo, a proper "PAID" stamp, layout and colours.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ document.number }}</title>
+  <style>
+    @page { size: A4; margin: 20mm; }
+    body { font-family: "DejaVu Sans", "Segoe UI", sans-serif; font-size: 11pt; color: #1f2328; }
+    h1 { font-size: 20pt; margin: 0 0 4mm; }
+    .paid { display: inline-block; border: 3px solid #0b6e4f; color: #0b6e4f;
+            padding: 2mm 6mm; font-size: 18pt; font-weight: bold; transform: rotate(-8deg); }
+    table { width: 100%; border-collapse: collapse; margin-top: 8mm; }
+    th, td { text-align: left; padding: 2mm; border-bottom: 1px solid #d0d7de; }
+    .amount { text-align: right; }
+  </style>
+</head>
+<body>
+  <h1>Receipt</h1>
+  <p class="paid">PAID</p>
+  <p>
+    <strong>{{ org.name }}</strong><br>
+    {{ org.address }}<br>
+    {{ org.email }}
+  </p>
+
+  <p>
+    Receipt number: <strong>{{ document.number }}</strong><br>
+    Date paid: {{ document.issued_on.strftime("%d %B %Y") }}<br>
+    Payment reference: {{ pledge.payment_reference or pledge.reference }}
+  </p>
+
+  <p>
+    Received from:<br>
+    <strong>{{ sponsor.company_name }}</strong><br>
+    {{ sponsor.contact_name }}<br>
+    {{ sponsor.email }} · {{ sponsor.phone }}
+  </p>
+
+  <table>
+    <tr><th>Description</th><th class="amount">Amount</th></tr>
+    <tr>
+      <td>Sponsorship: {{ pledge.tier_name }}</td>
+      <td class="amount">{{ pledge.amount_kobo | naira }}</td>
+    </tr>
+    <tr><th>Total paid</th><th class="amount">{{ pledge.amount_kobo | naira }}</th></tr>
+  </table>
+
+  <p>Thank you for supporting the Ekiti Marathon.</p>
+</body>
+</html>

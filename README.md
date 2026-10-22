@@ -139,6 +139,8 @@ Open http://localhost:3000.
 | `SMS_PROVIDER` | `console` | `console` prints SMS to the API log instead of sending; production must use `termii` |
 | `TERMII_API_KEY` | | Termii SMS key. Leave empty locally |
 | `RACE_DATE` | `2027-03-06` | Race day, for the minimum-age rule. Empty = today. A category's gun start time overrides it |
+| `ORGANISER_NAME`, `ORGANISER_ADDRESS`, `ORGANISER_EMAIL` | | Shown on sponsor invoices and receipts |
+| `BANK_NAME`, `BANK_ACCOUNT_NAME`, `BANK_ACCOUNT_NUMBER` | | The organisers' account, printed on invoices for sponsors paying by bank transfer |
 | `OTP_DEV_CODE` | `123456` | Development only: every OTP is this code. Empty = random codes, printed in the API log |
 | `TERMII_SENDER_ID` | `EkitiRun` | SMS sender name |
 | `CORS_ORIGINS` | `http://localhost:3000` | Allowed frontend origins, comma-separated: `http://localhost:3000,https://ekitirun.ng` |
@@ -195,6 +197,13 @@ uv run ruff check .
 ```bash
 docker compose exec -e TEST_DATABASE_URL=postgresql+asyncpg://ekitirun:ekitirun@db:5432/ekitirun_test api sh -c "uv pip install --system pytest pytest-asyncio && pytest"
 ```
+
+## Background jobs and PDFs
+
+The `worker` service runs background jobs (ARQ, using Redis): sponsor invoices are rendered when a pledge is created and receipts when it is paid. Every 5 minutes it also renders any document that was missed. PDFs are stored in Postgres and served at `/api/v1/files/...`.
+
+- Follow the worker: `docker compose logs -f worker`
+- Preview the invoice and receipt templates without a database: `cd apps/api && python -m scripts.render_pdf_preview` (writes `apps/api/pdf-preview/`)
 
 ## Paystack setup (sponsor payments)
 

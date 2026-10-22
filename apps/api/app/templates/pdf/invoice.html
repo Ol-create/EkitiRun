@@ -1,1 +1,61 @@
-<!-- B4 (Backend): sponsor invoice template. -->
+<!--
+  Sponsor invoice. Design: Backend (B4). Fields: see the docstring of app/documents/pledges.py.
+  Preview: python -m scripts.render_pdf_preview   (writes pdf-preview/invoice.pdf)
+  This starter version has every required field but no design yet: add the race
+  logo (put logo.png next to this file and use <img src="logo.png">), layout and colours.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ document.number }}</title>
+  <style>
+    @page { size: A4; margin: 20mm; }
+    body { font-family: "DejaVu Sans", "Segoe UI", sans-serif; font-size: 11pt; color: #1f2328; }
+    h1 { font-size: 20pt; margin: 0 0 4mm; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8mm; }
+    th, td { text-align: left; padding: 2mm; border-bottom: 1px solid #d0d7de; }
+    .amount { text-align: right; }
+  </style>
+</head>
+<body>
+  <h1>Invoice</h1>
+  <p>
+    <strong>{{ org.name }}</strong><br>
+    {{ org.address }}<br>
+    {{ org.email }}
+  </p>
+
+  <p>
+    Invoice number: <strong>{{ document.number }}</strong><br>
+    Date: {{ document.issued_on.strftime("%d %B %Y") }}<br>
+    Due: {{ document.due_on.strftime("%d %B %Y") }}<br>
+    Reference: {{ pledge.reference }}
+  </p>
+
+  <p>
+    Bill to:<br>
+    <strong>{{ sponsor.company_name }}</strong><br>
+    {{ sponsor.contact_name }}<br>
+    {{ sponsor.email }} · {{ sponsor.phone }}
+  </p>
+
+  <table>
+    <tr><th>Description</th><th class="amount">Amount</th></tr>
+    <tr>
+      <td>Sponsorship: {{ pledge.tier_name }}</td>
+      <td class="amount">{{ pledge.amount_kobo | naira }}</td>
+    </tr>
+    <tr><th>Total due</th><th class="amount">{{ pledge.amount_kobo | naira }}</th></tr>
+  </table>
+
+  <h2>How to pay</h2>
+  <p>Online by card or transfer through the payment link, or by bank transfer to:</p>
+  <p>
+    Bank: {{ org.bank_name }}<br>
+    Account name: {{ org.bank_account_name }}<br>
+    Account number: <strong>{{ org.bank_account_number }}</strong><br>
+    Use <strong>{{ pledge.reference }}</strong> as the transfer narration.
+  </p>
+</body>
+</html>

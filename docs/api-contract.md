@@ -38,6 +38,7 @@ In Phase 0, Lead ships **stub versions** of every endpoint below that return fak
 | DELETE | `/admin/sponsor-tiers/{id}` | | `204`. Admin only |
 | POST | `/sponsors/pledges` | `{ tier_id? , custom_amount_kobo?, company_name, contact_name, email, phone, website? }`. Send exactly one of `tier_id` or `custom_amount_kobo` | `201 { reference, authorization_url, invoice_pdf_url }` |
 | GET | `/sponsors/pledges/{reference}` | | `{ reference, company_name, amount_kobo, status: "pending"\|"paid"\|"failed", receipt_pdf_url? }` |
+| GET | `/files/{key}` | | A stored file (sponsor invoice or receipt PDF). The `invoice_pdf_url` and `receipt_pdf_url` links point here; the key contains a random token, so only people with the link can open it. `404 FILE_NOT_FOUND` |
 | POST | `/webhooks/paystack` | Paystack payload, signed in `x-paystack-signature` | Lead only. This is the **only** public way a pledge becomes `paid`. Every event is re-verified with Paystack and settled once. `401 INVALID_SIGNATURE`; `502 PAYMENT_PROVIDER_ERROR` when Paystack can't be reached (Paystack retries) |
 
 ## Race day (owned by Lead)
