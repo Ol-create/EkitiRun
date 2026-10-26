@@ -111,6 +111,21 @@ docker compose exec api python -m scripts.seed
 
 The seed loads the four race categories, a **placeholder course** around Ado-Ekiti and its checkpoints. It is safe to run again.
 
+### Demo race (real data for the leaderboard and maps)
+
+`scripts/demo_race.py` fills the real database with a believable race and plays it live through the real API, so pages show real endpoints instead of stubs:
+
+```bash
+docker compose exec api python -m scripts.demo_race setup --runners 300 --started-minutes-ago 75
+docker compose exec api python -m scripts.demo_race run      # live GPS and scans; Ctrl+C stops
+docker compose exec api python -m scripts.demo_race reset    # remove the demo data only
+```
+
+- `setup` registers demo runners in every race, gives about 95% of them trackers, records the gun starts and saves the scans they'd have by now. `--started-minutes-ago` picks the moment: 75 gives finishers in the short races and runners everywhere on the marathon.
+- `run` sends GPS every 5 s and a scan at each checkpoint a runner passes, through `POST /gps/positions` and `POST /scans/batch` (needs `api`, `redis` and `gps-writer` running). A few runners drop out (marked DNF after 20 minutes), some trackers go flat, and each course's 15 km phone runs 150 s slow, so clock correction shows up in `GET /api/v1/scanner/devices`.
+- Demo runners use phone numbers `+23480900xxxxx` and trackers `DMO-xxxx`; `reset` touches nothing else. It refuses to run in production.
+- For load testing (E12), use `--runners 5000`.
+
 ### Fake API (Phase 0 stubs)
 
 Until each feature is built for real, most endpoints return **fake data** from a simulated race that moves on a clock, so the leaderboard, maps and live streams change like a real race. `GET /categories` already reads the real database. The rules for triggering errors (OTP codes, phone numbers that are "already registered", failed payments, admin token) are in [docs/api-contract.md](docs/api-contract.md#phase-0-stub-behaviour).
