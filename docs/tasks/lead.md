@@ -125,6 +125,21 @@ You own the architecture and everything risky: data, auth, money, the scanner, a
 
 ## Phase 3: Hardening
 
+### E16: Admin login (4 pts)
+
+- Organiser accounts (`admin_users`): email, name, scrypt password hash, active flag, session version. No sign-up: `python -m scripts.create_admin` creates, resets, signs out and deactivates.
+- `POST /admin/auth/login` returns a 12-hour token; failed sign-ins limited per email and per IP; an unknown email is rejected exactly like a wrong password.
+- Every admin endpoint re-checks the account, so deactivating, signing out or changing a password takes effect at once. The development token keeps working in development only.
+- `/admin` page: sign-in, and the race-office panel for gun starts (start now / set time in WAT) and DNF (mark / undo).
+- Preflight fails in production if no active admin exists.
+
+### E17: Manual time entry (3 pts)
+
+- Admin endpoint to add or correct a runner's scan at a checkpoint with an explicit time (paper backup sheets, a phone that died, a wrong finish time), with a required reason.
+- Audit trail: who changed what, when, and the previous value; never lose the original scan.
+- The leaderboard and live stream update like for a scanned time.
+- A small form on `/admin` (or a newbie ticket for the screen once the endpoint exists).
+
 ### E12: Ship it (4 pts, plus ongoing reviews)
 
 - Deploy: Vercel (web), Render or Railway (API, worker, Redis), Neon (Postgres). Scale up in race week.

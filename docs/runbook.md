@@ -13,7 +13,7 @@ Fill in before race week.
 | Tech lead (on call all race day) | | | Everything below; decides on fallbacks |
 | Backup tech | | | Takes over if the lead is unreachable |
 | Race director | | | Gun starts (tells the tech lead the exact times), DNF decisions |
-| Race office | | | Admin endpoints, scanner devices list, results questions |
+| Race office | | | `/admin` (gun starts, DNF), scanner devices list, results questions |
 | Checkpoint captains (one per checkpoint) | | | Their scanner phone, the paper backup sheet |
 | Kit desk lead | | | Hand-outs and returns, the "still out" list |
 | Hosting support | Render, Neon, Vercel status pages and support | | Outages on their side |
@@ -28,6 +28,7 @@ Fill in before race week.
 | T-7 days | Checkpoint PINs made and given to captains | `python -m scripts.checkpoint_pins` |
 | T-3 days | Scale production up | `docs/deploy.md`, "Race week" |
 | T-3 days | Trackers charged, labelled, imported (B5's CSV import) | |
+| T-7 days | Organiser accounts made; each person signs in once at `/admin` | `python -m scripts.create_admin create --email ... --name ...` |
 | T-1 day | Preflight passes; demo data removed | `python -m scripts.preflight` |
 | T-1 day | Every scanner phone logs in **with signal** at its checkpoint (downloads the runner list, caches the page) | `/scanner` |
 | Race morning | Preflight again; dashboards open; gun starts recorded | Below |
@@ -40,12 +41,9 @@ Fill in before race week.
 - [ ] Open: Render dashboard (API, worker, GPS writer metrics and logs), Neon dashboard, the public leaderboard and live map, `GET /api/v1/scanner/devices` (admin).
 - [ ] Every checkpoint phone: logged in, "Online", battery charged, power bank attached, **paper backup sheet** and pen.
 - [ ] Kit desk: `/kit` logged in, trackers counted.
-- [ ] **Gun starts:** the moment each race starts, record it (or have the race director call it in and record it straight away):
-  ```bash
-  curl -X POST https://api.<domain>/api/v1/admin/categories/<id>/gun-start \
-       -H "Authorization: Bearer <admin token>" -H "Content-Type: application/json" -d '{}'
-  ```
-  Missed it? Record it afterwards with `{"at": "2027-03-06T06:30:00+01:00"}`: all times recalculate.
+- [ ] Race office signed in at `/admin` (on a laptop with a charger and a backup phone hotspot).
+- [ ] **Gun starts:** the moment each race starts, press **Start now** for it at `/admin` (or have the race director call it in and press it straight away). Missed it? Use **Set time (WAT)** with the exact time: all its times recalculate.
+- [ ] DNFs during the race: `/admin`, enter the bib, **Mark DNF** (**Undo** if it was a mistake).
 
 ## During the race: what to watch
 
@@ -70,7 +68,10 @@ Nothing to do: scans are saved on the phone and upload when signal returns. Tell
 Check their splits (`/track/<bib>`). A missing checkpoint scan doesn't stop a finish time (the finish scan is what counts). For a missing **finish** scan, take the time from the paper sheet at the finish and have the tech lead add it before results are published (see "Known gaps").
 
 ### Runner drops out
-Race office marks them: `POST /api/v1/admin/runners/<bib>/dnf` (admin). Undo with `DELETE` on the same URL.
+Race office: `/admin`, enter the bib, **Mark DNF**. **Undo** reverses it.
+
+### An organiser's laptop or password is lost
+`python -m scripts.create_admin sign-out --email ...` ends their sessions at once (or `deactivate`). Give them a new password with `reset-password`.
 
 ### API down or very slow
 1. Check Render: is the API restarting (crash loop)? Read the last logs.
@@ -95,7 +96,6 @@ Not race-day critical. Registration and sponsorship can wait; check their status
 ## Known gaps (decide before race day)
 
 - **No screen for entering or correcting a time by hand** (paper-sheet times, a wrong finish time). Today the tech lead inserts or fixes the `scans` row directly in the database. A small admin "add/correct scan" endpoint would make this safer: worth building before the rehearsal.
-- **No admin login yet**: admin calls use the development token, which production refuses. Race-office actions (gun start, DNF) need real admin login before race day.
 
 ## Manual results fallback
 

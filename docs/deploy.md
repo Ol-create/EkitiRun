@@ -19,7 +19,7 @@ There are two environments: **staging** (rehearsals, load tests, demo data) and 
 - [ ] Paystack live secret key (business verification can take days), webhook URL set to `https://api.<domain>/api/v1/webhooks/paystack`.
 - [ ] Termii live key, **registered sender ID "EkitiRun"** and DND route enabled (can take days).
 - [ ] Organiser name, address, email and bank details for invoices.
-- [ ] Race date, kit-desk PIN.
+- [ ] Race date, kit-desk PIN, and who needs an organiser (`/admin`) account.
 
 ## 1. Database (Neon)
 
@@ -39,6 +39,7 @@ There are two environments: **staging** (rehearsals, load tests, demo data) and 
    ```bash
    python -m scripts.seed
    python -m scripts.checkpoint_pins      # print the volunteers' PINs once: save them
+   python -m scripts.create_admin create --email you@... --name "Your Name"   # first organiser
    python -m scripts.preflight
    ```
    Production refuses to start with development secrets, the fixed OTP code, console SMS or a test Paystack key, so a misconfiguration shows up as a failed deploy, not a quiet problem.

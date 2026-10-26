@@ -17,7 +17,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models import Category, Checkpoint, Runner, Tracker
+from app.models import AdminUser, Category, Checkpoint, Runner, Tracker
 from app.modules.gps import ingest
 
 
@@ -116,6 +116,14 @@ async def check_race_data(session: AsyncSession, report: Report) -> None:
         "runners",
         f"{runners} registered"
         + (f", {demo} DEMO (python -m scripts.demo_race reset)" if demo else ""),
+    )
+    admins = await session.scalar(
+        select(func.count()).select_from(AdminUser).where(AdminUser.is_active.is_(True))
+    )
+    report.add(
+        "PASS" if admins else ("FAIL" if settings.environment == "production" else "WARN"),
+        "admins",
+        f"{admins} active" + ("" if admins else " (python -m scripts.create_admin create ...)"),
     )
     trackers = dict(
         (await session.execute(select(Tracker.status, func.count()).group_by(Tracker.status))).all()

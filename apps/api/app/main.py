@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.errors import register_error_handlers
 from app.core.schemas import ErrorResponse
+from app.modules.admin_auth.router import router as admin_auth_router
 from app.modules.auth.router import router as auth_router
 from app.modules.categories.router import router as categories_router
 from app.modules.files.router import router as files_router
@@ -51,6 +52,7 @@ for router in (
     kit_router,
     files_router,
     timing_router,
+    admin_auth_router,
 ):
     app.include_router(router, prefix="/api/v1")
 

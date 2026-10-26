@@ -23,10 +23,19 @@ In Phase 0, Lead ships **stub versions** of every endpoint below that return fak
 
 | Method | Path | Response |
 |---|---|---|
-| GET | `/categories` | `[{ id, code, name, distance_km, cap, slots_left, is_full }]`, in display order |
+| GET | `/categories` | `[{ id, code, name, distance_km, cap, slots_left, is_full, gun_start_at }]` (`gun_start_at` is null until the race starts), in display order |
 | GET | `/categories/{id}` | One category, same shape. `404 CATEGORY_NOT_FOUND` |
 | GET | `/runners/search?q=` | `[{ bib_number, full_name, category_code }]`, at most 20. `q` is a name or bib, at least 2 characters |
 | GET | `/runners/{bib_number}` | `{ bib_number, full_name, gender, category, status: "registered"\|"started"\|"finished"\|"dnf", splits: [{ checkpoint_id, checkpoint_name, distance_km, scanned_at, elapsed_seconds }], finish_seconds?, position_overall?, position_category?, live_position? }`. `404 RUNNER_NOT_FOUND`. Positions are set once the runner finishes: `position_overall` is the place in their race (all genders), `position_category` the place within their gender in that race. `live_position` has the shape in *Live GPS tracking* below, and is `null` when the runner has no tracker or no GPS fix yet |
+
+## Organiser (admin) sign-in (owned by Lead)
+
+Every endpoint marked "Admin" needs `Authorization: Bearer <token>`. Accounts are made with `python -m scripts.create_admin` (there is no sign-up). In development only, the token `dev-admin` also works; production refuses it.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| POST | `/admin/auth/login` | `{ email, password }` | `{ token, expires_at, admin: { id, email, name } }`, token valid 12 h. `401 LOGIN_INVALID` (same for unknown email and wrong password), `429 LOGIN_RATE_LIMITED` (5 failures per email or 10 per IP in 15 min) |
+| GET | `/admin/auth/me` | | `{ id, email, name }`. `401 ADMIN_AUTH_REQUIRED` if the token expired or the admin was signed out, deactivated or had their password changed |
 
 ## Sponsors (tiers and pledges owned by Backend newbie, payments by Lead)
 
@@ -97,7 +106,7 @@ While an endpoint is still a stub (Phase 0 to 2), it returns fake data and these
 | `GET /stream/results` | **Real since E11**: an event for every scan that upload accepts |
 | Runner search and detail (until B3) | A simulated race of 240 runners (bibs `F0001`–`F0050`, `H0001`–`H0070`, `T0001`–`T0060`, `R0001`–`R0060`). It starts about 100 minutes in when the API starts and loops every 6.5 hours, so there are always finishers, runners on course, DNFs, runners who never started, stale trackers and runners without one |
 | `POST /sponsors/pledges` | Still a stub until B2 (the Paystack side is real since E5). Skips Paystack: `authorization_url` goes straight to `/sponsors/thank-you`. A company name containing "fail" ends `failed`, one containing "pending" stays `pending`, anything else is `paid`. PDF links open a placeholder PDF |
-| Admin endpoints | Send `Authorization: Bearer dev-admin` (development only, until admin login exists) |
+| Admin endpoints | Sign in with `POST /admin/auth/login` (accounts from `scripts/create_admin.py`), or in development send `Authorization: Bearer dev-admin` |
 | `POST /gps/positions`, `POST /gps/traccar` | **Real since E13.** Send `X-Gateway-Secret` with the value of `GATEWAY_SECRET` in `apps/api/.env`. Only points from trackers assigned to a runner are saved. `GET /positions` and `/stream/positions` are real since E14: they show registered runners wearing an assigned tracker |
 | `/kit/*` | **Real since E15.** Log in with `KIT_PIN` (development: `246810`). Trackers must exist in the `trackers` table (B5 adds the admin and CSV import) |
 | `POST /scans/batch` | **Real since E8**: scans are saved for registered runners only (fake-race bibs are `invalid`) |

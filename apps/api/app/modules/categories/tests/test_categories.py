@@ -55,6 +55,7 @@ async def test_list_categories_in_sort_order(db_client, session):
         "cap": 100,
         "slots_left": 100,
         "is_full": False,
+        "gun_start_at": None,
     }
 
 

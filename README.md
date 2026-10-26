@@ -293,6 +293,20 @@ CI (`.github/workflows/ci.yml`) runs these on every pull request, and a PR can't
 
 **Adding a package:** frontend `pnpm --filter web add <package>`; API `uv add <package>` in `apps/api`. Commit the updated lockfile with your change. New npm packages that run install scripts must be approved by Lead (`allowBuilds` in `pnpm-workspace.yaml`).
 
+## Organisers (`/admin`)
+
+Organisers sign in at `/admin` to record gun starts and mark DNFs. There's no sign-up: accounts are made from the API shell:
+
+```bash
+python -m scripts.create_admin create --email ada@ekitirun.ng --name "Ada Okafor"   # asks for a password
+python -m scripts.create_admin list
+python -m scripts.create_admin reset-password --email ada@ekitirun.ng   # also ends their sessions
+python -m scripts.create_admin sign-out --email ada@ekitirun.ng         # ends all their sessions
+python -m scripts.create_admin deactivate --email ada@ekitirun.ng
+```
+
+Passwords need 12+ characters and are stored as scrypt hashes. Sign-ins last 12 hours; failed attempts are limited per email and per IP. In development, admin endpoints also accept `Authorization: Bearer dev-admin`; production refuses it.
+
 ## Race-week scripts
 
 All from `apps/api` (or the API's shell on the host):

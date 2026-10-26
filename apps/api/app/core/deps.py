@@ -13,22 +13,34 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_session
 from app.core.errors import AppError
-from app.core.security import parse_kit_token, parse_scanner_token
+from app.core.security import parse_admin_token, parse_kit_token, parse_scanner_token
+from app.models import AdminUser
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
-async def require_admin(authorization: Annotated[str | None, Header()] = None) -> None:
-    """Admin-only endpoints.
+async def require_admin(
+    session: SessionDep, authorization: Annotated[str | None, Header()] = None
+) -> AdminUser | None:
+    """Admin-only endpoints: `Authorization: Bearer <token from POST /admin/auth/login>`.
 
-    Until real admin login is built, development accepts
-    `Authorization: Bearer <ADMIN_DEV_TOKEN>` (default `dev-admin`).
+    The account is re-checked on every request, so deactivating an admin or signing
+    them out everywhere (scripts/create_admin.py) takes effect at once.
+    In development only, `Bearer <ADMIN_DEV_TOKEN>` (default `dev-admin`) also works,
+    returning None instead of an admin.
     """
-    # TODO(Lead): verify a real admin login here (not yet scheduled in a ticket).
-    if settings.environment == "production":
-        raise AppError(401, "ADMIN_AUTH_REQUIRED", "Admin login is not available yet")
-    if authorization != f"Bearer {settings.admin_dev_token}":
-        raise AppError(401, "ADMIN_AUTH_REQUIRED", "Admin token missing or invalid")
+    token = (authorization or "").removeprefix("Bearer ").strip()
+    if settings.environment != "production" and token and token == settings.admin_dev_token:
+        return None
+    parsed = parse_admin_token(token) if token else None
+    if parsed is not None:
+        admin = await session.get(AdminUser, parsed[0])
+        if admin is not None and admin.is_active and admin.session_version == parsed[1]:
+            return admin
+    raise AppError(401, "ADMIN_AUTH_REQUIRED", "Admin login required. Sign in again.")
+
+
+CurrentAdmin = Annotated[AdminUser | None, Depends(require_admin)]
 
 
 async def require_gateway(

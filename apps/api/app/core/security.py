@@ -1,4 +1,4 @@
-"""OTP hashing, verification tokens, QR tokens and scanner devices. Owner: Lead (E3, E4, E7)."""
+"""Passwords, OTPs, tokens, QR codes and device logins. Owner: Lead (E3, E4, E7, E15, E16)."""
 
 import base64
 import hashlib
@@ -173,3 +173,74 @@ def parse_scanner_token(token: str) -> tuple[str, int]:
     if claims.get("purpose") != _SCANNER_PURPOSE:
         raise AppError(401, "SCANNER_AUTH_REQUIRED", "Not a scanner login.")
     return str(claims["sub"]), int(claims["cp"])
+
+
+# ---------------------------------------------------------------- admin accounts (E16)
+
+ADMIN_TOKEN_TTL = timedelta(hours=12)  # one race day
+_ADMIN_PURPOSE = "admin"
+_SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2**14, 8, 1  # ~16 MB and ~50 ms per check
+MIN_PASSWORD_LENGTH = 12
+
+
+def _scrypt(password: str, salt: bytes, n: int, r: int, p: int) -> bytes:
+    return hashlib.scrypt(password.encode(), salt=salt, n=n, r=r, p=p, dklen=32)
+
+
+def hash_password(password: str) -> str:
+    """`scrypt$N$r$p$salt$hash` (base64). Slow on purpose, so stolen hashes resist guessing."""
+    salt = secrets.token_bytes(16)
+    digest = _scrypt(password, salt, _SCRYPT_N, _SCRYPT_R, _SCRYPT_P)
+    b64 = lambda b: base64.b64encode(b).decode()  # noqa: E731
+    return f"scrypt${_SCRYPT_N}${_SCRYPT_R}${_SCRYPT_P}${b64(salt)}${b64(digest)}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        scheme, n, r, p, salt, digest = stored.split("$")
+        if scheme != "scrypt":
+            return False
+        actual = _scrypt(password, base64.b64decode(salt), int(n), int(r), int(p))
+        return hmac.compare_digest(actual, base64.b64decode(digest))
+    except (ValueError, TypeError):
+        return False
+
+
+# Checked against when the email is unknown, so a wrong email takes as long as a
+# wrong password and response times don't reveal which admin emails exist.
+_DUMMY_HASH = hash_password(secrets.token_urlsafe(16))
+
+
+def burn_password_check(password: str) -> None:
+    verify_password(password, _DUMMY_HASH)
+
+
+def create_admin_token(admin_id: int, session_version: int, now: datetime | None = None) -> str:
+    now = now or datetime.now(UTC)
+    claims = {
+        "sub": str(admin_id),
+        "sv": session_version,
+        "purpose": _ADMIN_PURPOSE,
+        "iat": now,
+        "exp": now + ADMIN_TOKEN_TTL,
+    }
+    return jwt.encode(claims, settings.jwt_secret, algorithm=_ALGORITHM)
+
+
+def parse_admin_token(token: str) -> tuple[int, int] | None:
+    """(admin id, session version), or None if this isn't a valid admin token."""
+    try:
+        claims = jwt.decode(
+            token,
+            settings.jwt_secret,
+            algorithms=[_ALGORITHM],
+            options={"require": ["sub", "exp", "purpose", "sv"]},
+        )
+    except jwt.InvalidTokenError:
+        return None
+    if claims.get("purpose") != _ADMIN_PURPOSE:
+        return None
+    try:
+        return int(claims["sub"]), int(claims["sv"])
+    except (TypeError, ValueError):
+        return None

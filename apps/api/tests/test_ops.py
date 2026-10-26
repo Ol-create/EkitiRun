@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app.core.database import engine_options
 from app.core.security import hash_pin
 from app.models import Checkpoint
-from scripts import demo_race, export_results, preflight
+from scripts import create_admin, demo_race, export_results, preflight
 from scripts.seed import seed
 
 
@@ -59,9 +59,12 @@ async def test_preflight_flags_what_needs_doing(session, redis):
     assert by_check["runners"][0] == "WARN"  # demo data in development
     assert "demo_race reset" in by_check["runners"][1]
 
+    assert by_check["admins"][0] == "WARN"  # nobody can sign in yet
+
     for cp in await session.scalars(select(Checkpoint)):
         cp.pin_hash = hash_pin("123456")
     await demo_race.reset(session)
+    await create_admin.create(session, "ada@ekitirun.ng", "Ada", "a long enough password")
     report = preflight.Report()
     await preflight.check_race_data(session, report)
     assert all(level == "PASS" for level, _, _ in report.lines), report.lines

@@ -3,6 +3,7 @@
 Every model must be imported here so Alembic can see it.
 """
 
+from app.models.admin import AdminUser
 from app.models.base import Base
 from app.models.category import Category
 from app.models.checkpoint import Checkpoint
@@ -17,6 +18,7 @@ from app.models.stored_file import StoredFile
 from app.models.tracker import GpsPosition, Tracker
 
 __all__ = [
+    "AdminUser",
     "Base",
     "Category",
     "Checkpoint",

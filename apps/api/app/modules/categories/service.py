@@ -25,6 +25,7 @@ def _to_out(category: Category, registered: int) -> CategoryOut:
         cap=category.cap,
         slots_left=slots_left,
         is_full=slots_left == 0,
+        gun_start_at=category.gun_start_at,
     )
 
 
