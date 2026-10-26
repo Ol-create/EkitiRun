@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_session
 from app.core.errors import AppError
-from app.core.security import parse_scanner_token
+from app.core.security import parse_kit_token, parse_scanner_token
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -63,3 +63,13 @@ async def require_scanner(authorization: Annotated[str | None, Header()] = None)
 
 
 ScannerDep = Annotated[ScannerDevice, Depends(require_scanner)]
+
+
+async def require_kit_desk(authorization: Annotated[str | None, Header()] = None) -> str:
+    """Kit-collection and return desks: `Authorization: Bearer <token from POST /kit/login>`."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise AppError(401, "KIT_AUTH_REQUIRED", "Kit desk login expired. Enter the PIN again.")
+    return parse_kit_token(authorization.removeprefix("Bearer "))
+
+
+KitDeskDep = Annotated[str, Depends(require_kit_desk)]

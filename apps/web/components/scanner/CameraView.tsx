@@ -1,10 +1,17 @@
 "use client";
-// Camera QR scanning with html5-qrcode. Owner: Lead (E7).
+// Camera scanning with html5-qrcode: QR codes, and optionally tracker barcodes (E15). Owner: Lead (E7).
 import { useEffect, useRef, useState } from "react";
 
 const READER_ID = "qr-reader";
 
-export default function CameraView({ onCode }: { onCode: (raw: string) => void }) {
+export default function CameraView({
+  onCode,
+  barcodes = false,
+}: {
+  onCode: (raw: string) => void;
+  /** Also read 1D barcodes (Code 128 / Code 39 / EAN-13), e.g. tracker labels. */
+  barcodes?: boolean;
+}) {
   const [problem, setProblem] = useState<string | null>(null);
   const onCodeRef = useRef(onCode);
   useEffect(() => {
@@ -18,14 +25,19 @@ export default function CameraView({ onCode }: { onCode: (raw: string) => void }
     (async () => {
       const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
       if (stopped) return;
-      scanner = new Html5Qrcode(READER_ID, {
-        verbose: false,
-        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-      });
+      const formats = [Html5QrcodeSupportedFormats.QR_CODE];
+      if (barcodes) {
+        formats.push(
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.EAN_13,
+        );
+      }
+      scanner = new Html5Qrcode(READER_ID, { verbose: false, formatsToSupport: formats });
       try {
         await scanner.start(
           { facingMode: "environment" },
-          { fps: 12, qrbox: { width: 240, height: 240 } },
+          { fps: 12, qrbox: barcodes ? { width: 280, height: 160 } : { width: 240, height: 240 } },
           (text) => onCodeRef.current(text),
           () => {}, // "no QR in this frame": normal, ignore
         );
@@ -38,7 +50,7 @@ export default function CameraView({ onCode }: { onCode: (raw: string) => void }
       stopped = true;
       if (scanner?.isScanning) void scanner.stop().then(() => scanner?.clear());
     };
-  }, []);
+  }, [barcodes]);
 
   return (
     <div className="overflow-hidden rounded-xl bg-black">

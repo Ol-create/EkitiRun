@@ -1,13 +1,22 @@
 "use client";
-// Checkpoint PIN keypad. Owner: Lead (E7).
+// 6-digit PIN keypad, shared by the checkpoint scanner (E7) and the kit desk (E15). Owner: Lead.
 import { useState } from "react";
-import { login } from "@/lib/scanner/client";
 import { unlockAudio } from "@/lib/scanner/feedback";
-import { deviceId, type ScannerSession } from "@/lib/scanner/session";
+
+export type PinResult = { ok: true } | { ok: false; message: string };
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"];
 
-export default function PinLogin({ onLogin }: { onLogin: (session: ScannerSession) => void }) {
+export default function PinLogin({
+  title,
+  subtitle,
+  submitPin,
+}: {
+  title: string;
+  subtitle: string;
+  /** Check the PIN; on success the caller stores its login and switches screens. */
+  submitPin: (pin: string) => Promise<PinResult>;
+}) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -16,10 +25,9 @@ export default function PinLogin({ onLogin }: { onLogin: (session: ScannerSessio
     unlockAudio(); // this tap lets the scanner beep later
     setBusy(true);
     setError(null);
-    const result = await login(full, deviceId());
+    const result = await submitPin(full);
     setBusy(false);
-    if (result.ok) onLogin(result.session);
-    else {
+    if (!result.ok) {
       setError(result.message);
       setPin("");
     }
@@ -36,8 +44,8 @@ export default function PinLogin({ onLogin }: { onLogin: (session: ScannerSessio
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 p-4">
       <div>
-        <h1 className="text-2xl font-bold">Checkpoint scanner</h1>
-        <p className="text-gray-600">Enter the 6-digit PIN for your checkpoint.</p>
+        <h1 className="text-2xl font-bold">{title}</h1>
+        <p className="text-gray-600">{subtitle}</p>
       </div>
       <div aria-live="polite" className="flex justify-center gap-2" aria-label={`${pin.length} of 6 digits`}>
         {Array.from({ length: 6 }, (_, i) => (

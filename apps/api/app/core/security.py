@@ -125,6 +125,38 @@ def create_scanner_token(device_id: str, checkpoint_id: int, now: datetime | Non
     return jwt.encode(claims, settings.jwt_secret, algorithm=_ALGORITHM)
 
 
+# Kit-collection desks (E15) use the same kind of 24-hour device login.
+_KIT_PURPOSE = "kit"
+
+
+def kit_pin_matches(pin: str) -> bool:
+    return hmac.compare_digest(pin.encode(), settings.kit_pin.encode())
+
+
+def create_kit_token(device_id: str, now: datetime | None = None) -> str:
+    now = now or datetime.now(UTC)
+    claims = {"sub": device_id, "purpose": _KIT_PURPOSE, "iat": now, "exp": now + SCANNER_TOKEN_TTL}
+    return jwt.encode(claims, settings.jwt_secret, algorithm=_ALGORITHM)
+
+
+def parse_kit_token(token: str) -> str:
+    """The kit desk's device id, or 401 KIT_AUTH_REQUIRED."""
+    try:
+        claims = jwt.decode(
+            token,
+            settings.jwt_secret,
+            algorithms=[_ALGORITHM],
+            options={"require": ["sub", "exp", "purpose"]},
+        )
+    except jwt.InvalidTokenError:
+        raise AppError(
+            401, "KIT_AUTH_REQUIRED", "Kit desk login expired. Enter the PIN again."
+        ) from None
+    if claims.get("purpose") != _KIT_PURPOSE:
+        raise AppError(401, "KIT_AUTH_REQUIRED", "Not a kit desk login.")
+    return str(claims["sub"])
+
+
 def parse_scanner_token(token: str) -> tuple[str, int]:
     """(device_id, checkpoint_id), or 401 SCANNER_AUTH_REQUIRED."""
     try:

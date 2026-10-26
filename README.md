@@ -141,6 +141,7 @@ Open http://localhost:3000.
 | `RACE_DATE` | `2027-03-06` | Race day, for the minimum-age rule. Empty = today. A category's gun start time overrides it |
 | `ORGANISER_NAME`, `ORGANISER_ADDRESS`, `ORGANISER_EMAIL` | | Shown on sponsor invoices and receipts |
 | `BANK_NAME`, `BANK_ACCOUNT_NAME`, `BANK_ACCOUNT_NUMBER` | | The organisers' account, printed on invoices for sponsors paying by bank transfer |
+| `KIT_PIN` | `246810` | 6-digit PIN for the kit desks (`/kit`). Production refuses the development value |
 | `OTP_DEV_CODE` | `123456` | Development only: every OTP is this code. Empty = random codes, printed in the API log |
 | `TERMII_SENDER_ID` | `EkitiRun` | SMS sender name |
 | `CORS_ORIGINS` | `http://localhost:3000` | Allowed frontend origins, comma-separated: `http://localhost:3000,https://ekitirun.ng` |
@@ -228,6 +229,15 @@ Every runner wears a GPS tracker, handed out at kit collection. **Checkpoint sca
 - **Traccar** receives each tracker's own protocol and forwards positions to the API. Locally it's optional: copy `infra/traccar/traccar.example.xml` to `infra/traccar/traccar.xml`, set the gateway secret in it, then `docker compose --profile gps up -d`. Web UI: http://localhost:8082. Without trackers, the free Traccar Client phone app (OsmAnd protocol, port 5055) is a handy test device.
 - **Live positions** (`GET /api/v1/positions`, `/stream/positions?bib=`): after saving each batch, the writer moves each runner's dot in Redis. The dot is drawn on the course line, never moves back more than 100 m, ignores impossible jumps (over 8 m/s) and late or off-course fixes, and searches near the last position so loop courses (start = finish) aren't confused. Positions go stale after 2 minutes without a fix; the maps then show an estimate instead (`displayPosition()` in `apps/web/lib/tracking.ts`).
 - **Privacy:** location history is deleted 30 days after it was recorded (nightly job in the `worker` service).
+
+### Kit desk (`/kit`)
+
+Volunteers at bib collection and at the finish open `/kit` on a phone or laptop and enter the kit PIN (`KIT_PIN`; development `246810`, and production refuses that value).
+
+- **Hand out:** scan the runner's bib QR (or type the bib if it won't scan, after checking ID), then the tracker's label barcode (or type `31` for `TRK-0031`). The tracker starts counting for that runner within 30 seconds. Scanning the same pair again is harmless; a tracker already out shows who has it.
+- **Return:** scan the tracker's label. The runner's dot leaves the live map.
+- **Still out:** the count and list at the bottom, with each runner's race status: chase `finished` runners who haven't handed theirs back.
+- The desk needs signal (it's not offline like the scanner). Deposit and bib-collection rules are the organisers' call; the page only records hand-outs and returns.
 
 ### Tracker field test (before buying in bulk)
 

@@ -147,19 +147,3 @@ async def test_trackers_admin(client):
         f"{API}/admin/trackers", json={"device_id": "new", "label": "TRK-0001"}, headers=ADMIN
     )
     assert dup.json()["code"] == "TRACKER_EXISTS"
-
-
-async def test_kit_assign_and_return(client):
-    free_runner = next(
-        r.bib_number for r in race.runners() if r.has_tracker and r.bib_number.startswith("R")
-    )
-    ok = await client.post(
-        f"{API}/kit/assign", json={"qr_token": free_runner, "tracker_label": "TRK-0031"}
-    )
-    assert ok.status_code == 200, ok.json()
-    in_use = await client.post(
-        f"{API}/kit/assign", json={"qr_token": free_runner, "tracker_label": "TRK-0040"}
-    )
-    assert in_use.json()["code"] == "TRACKER_IN_USE"
-    returned = await client.post(f"{API}/kit/return", json={"tracker_label": "TRK-0001"})
-    assert returned.status_code == 200

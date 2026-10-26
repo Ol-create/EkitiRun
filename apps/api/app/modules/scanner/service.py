@@ -46,21 +46,30 @@ async def checkpoint_info(session: AsyncSession, checkpoint: Checkpoint) -> Chec
     )
 
 
+async def check_pin_attempts(redis: Redis, client_ip: str) -> None:
+    """429 after 10 wrong PINs (scanner or kit desk) from this IP in 15 minutes."""
+    if int(await redis.get(f"scanner:pin-failures:{client_ip}") or 0) >= FAILED_PIN_LIMIT:
+        raise AppError(429, "PIN_RATE_LIMITED", "Too many wrong PINs. Wait 15 minutes.")
+
+
+async def record_wrong_pin(redis: Redis, client_ip: str) -> None:
+    failures_key = f"scanner:pin-failures:{client_ip}"
+    async with redis.pipeline(transaction=True) as pipe:
+        pipe.incr(failures_key)
+        pipe.expire(failures_key, FAILED_PIN_WINDOW_S, nx=True)
+        await pipe.execute()
+
+
 async def login(
     session: AsyncSession, redis: Redis, pin: str, device_id: str, client_ip: str
 ) -> ScannerLoginOut:
-    failures_key = f"scanner:pin-failures:{client_ip}"
-    if int(await redis.get(failures_key) or 0) >= FAILED_PIN_LIMIT:
-        raise AppError(429, "PIN_RATE_LIMITED", "Too many wrong PINs. Wait 15 minutes.")
+    await check_pin_attempts(redis, client_ip)
 
     checkpoint = await session.scalar(
         select(Checkpoint).where(Checkpoint.pin_hash == security.hash_pin(pin))
     )
     if checkpoint is None:
-        async with redis.pipeline(transaction=True) as pipe:
-            pipe.incr(failures_key)
-            pipe.expire(failures_key, FAILED_PIN_WINDOW_S, nx=True)
-            await pipe.execute()
+        await record_wrong_pin(redis, client_ip)
         raise AppError(401, "PIN_INVALID", "That PIN is not correct.")
 
     now = datetime.now(UTC)

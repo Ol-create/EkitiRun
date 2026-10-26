@@ -101,6 +101,7 @@ def test_production_accepts_safe_settings():
         termii_api_key="live-key",
         payment_provider="paystack",
         paystack_secret_key="sk_live_" + strong,
+        kit_pin="739204",
         _env_file=None,
     )
 

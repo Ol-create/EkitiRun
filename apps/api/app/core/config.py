@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # Development-only default for every secret. Production refuses to start with it.
 INSECURE_DEFAULT = "dev-only-insecure-secret-change-me-in-production"
+DEV_KIT_PIN = "246810"
 
 
 class Settings(BaseSettings):
@@ -41,6 +42,9 @@ class Settings(BaseSettings):
     bank_account_number: str = "0000000000"
     invoice_due_days: int = 14
 
+    # 6-digit PIN for the kit-collection and tracker-return desks (E15). Change it for the race.
+    kit_pin: str = DEV_KIT_PIN
+
     # Race day, used for the minimum-age rule (age on race day). Until it is set,
     # ages are checked against today's date.
     race_date: date | None = None
@@ -68,6 +72,13 @@ class Settings(BaseSettings):
     def empty_is_none(cls, v):
         return v or None
 
+    @field_validator("kit_pin")
+    @classmethod
+    def six_digit_pin(cls, v: str) -> str:
+        if not (len(v) == 6 and v.isdigit()):
+            raise ValueError("KIT_PIN must be 6 digits")
+        return v
+
     @model_validator(mode="after")
     def safe_for_production(self) -> Self:
         """Refuse to start in production with development shortcuts or default secrets."""
@@ -80,6 +91,8 @@ class Settings(BaseSettings):
         ]
         if self.otp_dev_code:
             problems.append("OTP_DEV_CODE must be empty")
+        if self.kit_pin == DEV_KIT_PIN:
+            problems.append("KIT_PIN (not the development PIN)")
         if self.sms_provider != "termii" or not self.termii_api_key:
             problems.append("SMS_PROVIDER=termii with TERMII_API_KEY")
         if self.payment_provider != "paystack" or not self.paystack_secret_key.startswith(

@@ -502,6 +502,26 @@ export interface paths {
         patch: operations["update_tracker_api_v1_admin_trackers__tracker_id__patch"];
         trace?: never;
     };
+    "/api/v1/kit/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Login
+         * @description Unlock a kit-collection or return desk with the kit PIN (KIT_PIN). Lasts 24 h.
+         */
+        post: operations["login_api_v1_kit_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/kit/assign": {
         parameters: {
             query?: never;
@@ -511,7 +531,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Assign */
+        /**
+         * Assign
+         * @description Hand a tracker to a runner. Scanning the same pair again is harmless.
+         */
         post: operations["assign_api_v1_kit_assign_post"];
         delete?: never;
         options?: never;
@@ -528,8 +551,31 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Return Tracker */
+        /**
+         * Return Tracker
+         * @description Take a tracker back (finish area or kit desk).
+         */
         post: operations["return_tracker_api_v1_kit_return_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kit/outstanding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Outstanding
+         * @description Trackers still out and who has them.
+         */
+        get: operations["outstanding_api_v1_kit_outstanding_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -755,9 +801,15 @@ export interface components {
              * Qr Token
              * @description Scanned from the runner's QR code
              */
-            qr_token: string;
+            qr_token?: string | null;
+            /**
+             * Bib Number
+             * @description Typed bib, only when the QR won't scan (check the runner's ID)
+             */
+            bib_number?: string | null;
             /**
              * Tracker Label
+             * @description Tracker label (TRK-0031, or just 31) or the device number on its barcode
              * @example TRK-0031
              */
             tracker_label: string;
@@ -768,18 +820,51 @@ export interface components {
             bib_number: string;
             /** Full Name */
             full_name: string;
+            /** Category Code */
+            category_code: string;
             /** Tracker Label */
             tracker_label: string;
+            /**
+             * Already Assigned
+             * @description True if this exact pair was already linked (a repeat scan)
+             * @default false
+             */
+            already_assigned: boolean;
+        };
+        /** KitLoginIn */
+        KitLoginIn: {
+            /** Pin */
+            pin: string;
+            /** Device Id */
+            device_id: string;
+        };
+        /** KitLoginOut */
+        KitLoginOut: {
+            /**
+             * Token
+             * @description Send as `Authorization: Bearer <token>`
+             */
+            token: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
         };
         /** KitReturnIn */
         KitReturnIn: {
-            /** Tracker Label */
+            /**
+             * Tracker Label
+             * @example TRK-0031
+             */
             tracker_label: string;
         };
         /** KitReturnOut */
         KitReturnOut: {
             /** Bib Number */
             bib_number: string;
+            /** Full Name */
+            full_name: string;
             /** Tracker Label */
             tracker_label: string;
         };
@@ -847,6 +932,34 @@ export interface components {
              * @description Send this to POST /registrations. Valid 30 min.
              */
             verification_token: string;
+        };
+        /** OutstandingOut */
+        OutstandingOut: {
+            /**
+             * Out
+             * @description Trackers handed out and not returned yet
+             */
+            out: number;
+            /** Trackers */
+            trackers: components["schemas"]["OutstandingTracker"][];
+        };
+        /** OutstandingTracker */
+        OutstandingTracker: {
+            /** Tracker Label */
+            tracker_label: string;
+            /** Bib Number */
+            bib_number: string;
+            /** Full Name */
+            full_name: string;
+            /** Category Code */
+            category_code: string;
+            /**
+             * Race Status
+             * @enum {string}
+             */
+            race_status: "registered" | "started" | "finished" | "dnf";
+            /** Assigned At */
+            assigned_at: string | null;
         };
         /** PledgeCreated */
         PledgeCreated: {
@@ -2587,10 +2700,63 @@ export interface operations {
             };
         };
     };
-    assign_api_v1_kit_assign_post: {
+    login_api_v1_kit_login_post: {
         parameters: {
             query?: never;
             header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KitLoginIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitLoginOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    assign_api_v1_kit_assign_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2607,6 +2773,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KitAssignOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Not Found */
@@ -2641,7 +2825,9 @@ export interface operations {
     return_tracker_api_v1_kit_return_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2660,6 +2846,15 @@ export interface operations {
                     "application/json": components["schemas"]["KitReturnOut"];
                 };
             };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -2671,6 +2866,46 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    outstanding_api_v1_kit_outstanding_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutstandingOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -77,8 +77,10 @@ A `live_position` object, used below and in `GET /runners/{bib_number}`:
 | GET | `/admin/trackers?status=` | | `[{ id, device_id, label, status: "available"\|"assigned"\|"returned"\|"lost", bib_number?, battery_pct?, last_seen_at? }]`. Admin only |
 | POST | `/admin/trackers` | `{ device_id, label }` | `201` tracker. Admin only. `409 TRACKER_EXISTS` |
 | PATCH | `/admin/trackers/{id}` | `{ label?, status? }` | tracker. Admin only |
-| POST | `/kit/assign` | `{ qr_token, tracker_label }` | Kit-collection volunteer only. `{ bib_number, full_name, tracker_label }`. `409 TRACKER_IN_USE`, `409 RUNNER_HAS_TRACKER` |
-| POST | `/kit/return` | `{ tracker_label }` | Kit or finish volunteer only. `{ bib_number, tracker_label }`. Sets the tracker back to `returned` |
+| POST | `/kit/login` | `{ pin, device_id }` (the 6-digit `KIT_PIN`) | `{ token, expires_at }`, valid 24 h; send as `Authorization: Bearer <token>` to the kit endpoints. `401 PIN_INVALID`, `429 PIN_RATE_LIMITED` (shared with the scanner PIN limit) |
+| POST | `/kit/assign` | `{ qr_token \| bib_number, tracker_label }`: exactly one of the scanned QR or a typed bib (damaged QR; check ID). `tracker_label` may be `TRK-0031`, `31` or the tracker's device number | Kit desk only. `{ bib_number, full_name, category_code, tracker_label, already_assigned }` (scanning the same pair again returns `already_assigned: true`). Also records the runner's kit collection. `400 QR_INVALID`, `404 RUNNER_NOT_FOUND` / `TRACKER_NOT_FOUND`, `409 TRACKER_IN_USE` (says who has it), `409 RUNNER_HAS_TRACKER`, `409 TRACKER_LOST` |
+| POST | `/kit/return` | `{ tracker_label }` | Kit desk only. `{ bib_number, full_name, tracker_label }`. Sets the tracker to `returned` and takes the runner off the live map. `409 TRACKER_NOT_ASSIGNED` if it isn't out |
+| GET | `/kit/outstanding` | | Kit desk only. `{ out, trackers: [{ tracker_label, bib_number, full_name, category_code, race_status, assigned_at }] }`: trackers not returned yet; `race_status: "finished"` ones should be handed back |
 
 Location history is deleted 30 days after the race.
 
@@ -97,5 +99,5 @@ While an endpoint is still a stub (Phase 0 to 2), it returns fake data and these
 | `POST /sponsors/pledges` | Still a stub until B2 (the Paystack side is real since E5). Skips Paystack: `authorization_url` goes straight to `/sponsors/thank-you`. A company name containing "fail" ends `failed`, one containing "pending" stays `pending`, anything else is `paid`. PDF links open a placeholder PDF |
 | Admin endpoints | Send `Authorization: Bearer dev-admin` (development only, until admin login exists) |
 | `POST /gps/positions`, `POST /gps/traccar` | **Real since E13.** Send `X-Gateway-Secret` with the value of `GATEWAY_SECRET` in `apps/api/.env`. Only points from trackers assigned to a runner are saved. `GET /positions` and `/stream/positions` are real since E14: they show registered runners wearing an assigned tracker |
-| `POST /kit/assign`, `/kit/return` | `qr_token` can be a fake bib such as `R0005`. Trackers `TRK-0001`–`0030` are assigned, `TRK-0031`–`0039` are free, `TRK-0040` is lost |
+| `/kit/*` | **Real since E15.** Log in with `KIT_PIN` (development: `246810`). Trackers must exist in the `trackers` table (B5 adds the admin and CSV import) |
 | `POST /scans/batch` | **Real since E8**: scans are saved for registered runners only (fake-race bibs are `invalid`) |
