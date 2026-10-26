@@ -295,7 +295,7 @@ CI (`.github/workflows/ci.yml`) runs these on every pull request, and a PR can't
 
 ## Organisers (`/admin`)
 
-Organisers sign in at `/admin` to record gun starts and mark DNFs. There's no sign-up: accounts are made from the API shell:
+Organisers sign in at `/admin` to record gun starts, mark DNFs and correct times (paper backup sheets, a dead scanner phone, a wrong time; every change keeps the original in a history). There's no sign-up: accounts are made from the API shell:
 
 ```bash
 python -m scripts.create_admin create --email ada@ekitirun.ng --name "Ada Okafor"   # asks for a password

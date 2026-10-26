@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter
 from sqlalchemy import select
 
+from app.core.bibs import normalize_bib
 from app.core.deps import AdminDep, SessionDep
 from app.core.errors import AppError
 from app.core.redis import RedisDep
@@ -33,9 +34,10 @@ async def gun_start(
 
 
 async def _set_status(session, redis, bib_number: str, status: str) -> RunnerStatusOut:
-    runner = await session.scalar(select(Runner).where(Runner.bib_number == bib_number.upper()))
+    bib = normalize_bib(bib_number)
+    runner = await session.scalar(select(Runner).where(Runner.bib_number == bib))
     if runner is None:
-        raise AppError(404, "RUNNER_NOT_FOUND", f"No runner with bib {bib_number.upper()}.")
+        raise AppError(404, "RUNNER_NOT_FOUND", f"No runner with bib {bib}.")
     runner.status = status
     await session.commit()
     await service.mark_changed(redis, {runner.category_id})

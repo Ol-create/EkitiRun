@@ -13,7 +13,7 @@ Fill in before race week.
 | Tech lead (on call all race day) | | | Everything below; decides on fallbacks |
 | Backup tech | | | Takes over if the lead is unreachable |
 | Race director | | | Gun starts (tells the tech lead the exact times), DNF decisions |
-| Race office | | | `/admin` (gun starts, DNF), scanner devices list, results questions |
+| Race office | | | `/admin` (gun starts, DNF, time corrections), scanner devices list, results questions |
 | Checkpoint captains (one per checkpoint) | | | Their scanner phone, the paper backup sheet |
 | Kit desk lead | | | Hand-outs and returns, the "still out" list |
 | Hosting support | Render, Neon, Vercel status pages and support | | Outages on their side |
@@ -62,10 +62,10 @@ Nothing to do: scans are saved on the phone and upload when signal returns. Tell
 ### Scanner phone dies, is lost or breaks
 1. Volunteer switches to the **paper backup sheet** (bib + time, with a watch synced to the race clock).
 2. A spare phone logs in with the same checkpoint PIN and carries on.
-3. Scans still on the dead phone upload if it is revived and logged in to the same checkpoint. Paper-sheet times need entering with their written time: see "Known gaps" (typing a bib into a scanner later would record the time it was typed).
+3. Scans still on the dead phone upload if it is revived and logged in to the same checkpoint. Enter paper-sheet times at `/admin` > **Correct a time** (bib, checkpoint, the written time, reason "paper sheet"). Don't type them into a scanner later: that records the time they were typed.
 
 ### A runner's time is wrong or missing
-Check their splits (`/track/<bib>`). A missing checkpoint scan doesn't stop a finish time (the finish scan is what counts). For a missing **finish** scan, take the time from the paper sheet at the finish and have the tech lead add it before results are published (see "Known gaps").
+Race office: `/admin` > **Correct a time**, look up the bib. Each checkpoint shows its time and where it came from (scanner, typed on a scanner, race office). Set the right time in WAT with a reason, or **Remove** a scan that was wrong (e.g. the wrong runner scanned). A missing **finish** time comes from the finish paper sheet. Times entered here win over phone scans and every change is kept in the history.
 
 ### Runner drops out
 Race office: `/admin`, enter the bib, **Mark DNF**. **Undo** reverses it.
@@ -92,10 +92,6 @@ The API still works and scanners keep uploading. Publish standings from the API 
 
 ### SMS (Termii) or payments (Paystack) down
 Not race-day critical. Registration and sponsorship can wait; check their status pages.
-
-## Known gaps (decide before race day)
-
-- **No screen for entering or correcting a time by hand** (paper-sheet times, a wrong finish time). Today the tech lead inserts or fixes the `scans` row directly in the database. A small admin "add/correct scan" endpoint would make this safer: worth building before the rehearsal.
 
 ## Manual results fallback
 

@@ -7,6 +7,7 @@ import type { components } from "../api-types";
 
 export type Admin = components["schemas"]["AdminOut"];
 export type Category = components["schemas"]["CategoryOut"];
+export type RunnerTimes = components["schemas"]["RunnerTimesOut"];
 export interface AdminSession {
   token: string;
   expiresAt: string;
@@ -79,5 +80,32 @@ export function markDnf(s: AdminSession, bib: string) {
 export function undoDnf(s: AdminSession, bib: string) {
   return outcome(
     api.DELETE("/api/v1/admin/runners/{bib_number}/dnf", { ...auth(s), params: { path: { bib_number: bib } } }),
+  );
+}
+
+/** A runner's time at each checkpoint on their course, and the correction history. */
+export function runnerTimes(s: AdminSession, bib: string) {
+  return outcome(
+    api.GET("/api/v1/admin/runners/{bib_number}/scans", { ...auth(s), params: { path: { bib_number: bib } } }),
+  );
+}
+
+/** Add or correct a time. `at` is an ISO time with its zone, e.g. 2027-03-06T08:41:07+01:00. */
+export function setTime(s: AdminSession, bib: string, checkpointId: number, at: string, reason: string) {
+  return outcome(
+    api.PUT("/api/v1/admin/runners/{bib_number}/scans/{checkpoint_id}", {
+      ...auth(s),
+      params: { path: { bib_number: bib, checkpoint_id: checkpointId } },
+      body: { scanned_at: at, reason },
+    }),
+  );
+}
+
+export function removeTime(s: AdminSession, bib: string, checkpointId: number, reason: string) {
+  return outcome(
+    api.DELETE("/api/v1/admin/runners/{bib_number}/scans/{checkpoint_id}", {
+      ...auth(s),
+      params: { path: { bib_number: bib, checkpoint_id: checkpointId }, query: { reason } },
+    }),
   );
 }

@@ -20,7 +20,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from redis.asyncio import Redis
-from sqlalchemy import func, select, text
+from sqlalchemy import and_, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -112,7 +112,11 @@ def _upsert(rows: list[dict[str, Any]]) -> Any:
             "entry": stmt.excluded.entry,
             "received_at": func.now(),
         },
-        where=_corrected(stmt.excluded) < _corrected(Scan.__table__.c),
+        # Earliest wins, but a time set by the race office (E17) is never overwritten.
+        where=and_(
+            _corrected(stmt.excluded) < _corrected(Scan.__table__.c),
+            Scan.__table__.c.entry != "office",
+        ),
     ).returning(Scan.client_id)
 
 

@@ -683,6 +683,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/runners/{bib_number}/scans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Runner Times
+         * @description A runner's time at every checkpoint on their course, and the correction history.
+         */
+        get: operations["runner_times_api_v1_admin_runners__bib_number__scans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/runners/{bib_number}/scans/{checkpoint_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Time
+         * @description Add or correct a runner's time at a checkpoint. It wins over phone scans.
+         */
+        put: operations["set_time_api_v1_admin_runners__bib_number__scans__checkpoint_id__put"];
+        post?: never;
+        /**
+         * Remove Time
+         * @description Remove a wrong scan (e.g. scanned at the wrong checkpoint). The original is kept
+         *     in the history.
+         */
+        delete: operations["remove_time_api_v1_admin_runners__bib_number__scans__checkpoint_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -765,6 +810,15 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** ChangeOut */
+        ChangeOut: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "add" | "correct" | "remove";
+            checkpoint: components["schemas"]["CheckpointTime"];
+        };
         /** CheckpointInfo */
         CheckpointInfo: {
             /** Id */
@@ -797,6 +851,60 @@ export interface components {
             lat: number;
             /** Lng */
             lng: number;
+        };
+        /** CheckpointTime */
+        CheckpointTime: {
+            /** Checkpoint Id */
+            checkpoint_id: number;
+            /** Checkpoint Code */
+            checkpoint_code: string;
+            /** Checkpoint Name */
+            checkpoint_name: string;
+            /** Distance Km */
+            distance_km: number;
+            /**
+             * Scanned At
+             * @description Clock-corrected time, or null if missing
+             */
+            scanned_at: string | null;
+            /** Elapsed Seconds */
+            elapsed_seconds: number | null;
+            /**
+             * Entry
+             * @description qr / manual: from a scanner phone; office: set by the race office
+             */
+            entry: ("qr" | "manual" | "office") | null;
+            /** Device Id */
+            device_id: string | null;
+        };
+        /** Correction */
+        Correction: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "add" | "correct" | "remove";
+            /** Checkpoint Id */
+            checkpoint_id: number;
+            /** Checkpoint Name */
+            checkpoint_name: string;
+            /** Previous */
+            previous: {
+                [key: string]: unknown;
+            } | null;
+            /** New */
+            new: {
+                [key: string]: unknown;
+            } | null;
+            /** Reason */
+            reason: string;
+            /** Admin Name */
+            admin_name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** ErrorResponse */
         ErrorResponse: {
@@ -1281,6 +1389,24 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** RunnerTimesOut */
+        RunnerTimesOut: {
+            /** Bib Number */
+            bib_number: string;
+            /** Full Name */
+            full_name: string;
+            /** Category Code */
+            category_code: string;
+            /** Status */
+            status: string;
+            /** Checkpoints */
+            checkpoints: components["schemas"]["CheckpointTime"][];
+            /**
+             * History
+             * @description Newest first
+             */
+            history: components["schemas"]["Correction"][];
+        };
         /** ScanBatchIn */
         ScanBatchIn: {
             /** Device Id */
@@ -1406,6 +1532,20 @@ export interface components {
              */
             expires_at: string;
             checkpoint: components["schemas"]["CheckpointInfo"];
+        };
+        /** SetTimeIn */
+        SetTimeIn: {
+            /**
+             * Scanned At
+             * Format: date-time
+             * @description The time the runner was at the checkpoint, with its time zone (e.g. 2027-03-06T08:41:07+01:00)
+             */
+            scanned_at: string;
+            /**
+             * Reason
+             * @example Finish paper sheet, line 214
+             */
+            reason: string;
         };
         /** Split */
         Split: {
@@ -3277,6 +3417,185 @@ export interface operations {
                 };
             };
             /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    runner_times_api_v1_admin_runners__bib_number__scans_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                bib_number: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunnerTimesOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    set_time_api_v1_admin_runners__bib_number__scans__checkpoint_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                bib_number: string;
+                checkpoint_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetTimeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangeOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    remove_time_api_v1_admin_runners__bib_number__scans__checkpoint_id__delete: {
+        parameters: {
+            query: {
+                reason: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                bib_number: string;
+                checkpoint_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangeOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
             422: {
                 headers: {
                     [name: string]: unknown;

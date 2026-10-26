@@ -1,5 +1,5 @@
 "use client";
-// Organiser sign-in and the race-office panel. Owner: Lead (E16).
+// Organiser sign-in and the race-office panel. Owner: Lead (E16, E17).
 import { useCallback, useEffect, useState } from "react";
 import {
   listCategories,
@@ -12,6 +12,7 @@ import {
   type AdminSession,
   type Category,
 } from "@/lib/admin/client";
+import TimeCorrections from "./TimeCorrections";
 
 type Note = { tone: "good" | "bad"; text: string };
 const NOTE_STYLE = { good: "bg-green-100 text-green-900", bad: "bg-red-100 text-red-900" };
@@ -154,6 +155,8 @@ function RaceOffice({ session, onSignOut }: { session: AdminSession; onSignOut: 
           <button type="button" onClick={() => void dnf("undo")} className="rounded-lg border px-4">Undo</button>
         </div>
       </section>
+
+      <TimeCorrections session={session} onSignOut={onSignOut} />
     </main>
   );
 }

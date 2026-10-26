@@ -7,6 +7,7 @@ from app.core.schemas import ErrorResponse
 from app.modules.admin_auth.router import router as admin_auth_router
 from app.modules.auth.router import router as auth_router
 from app.modules.categories.router import router as categories_router
+from app.modules.corrections.router import router as corrections_router
 from app.modules.files.router import router as files_router
 from app.modules.gps.router import router as gps_router
 from app.modules.kit.router import router as kit_router
@@ -53,6 +54,7 @@ for router in (
     files_router,
     timing_router,
     admin_auth_router,
+    corrections_router,
 ):
     app.include_router(router, prefix="/api/v1")
 

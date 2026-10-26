@@ -37,6 +37,16 @@ Every endpoint marked "Admin" needs `Authorization: Bearer <token>`. Accounts ar
 | POST | `/admin/auth/login` | `{ email, password }` | `{ token, expires_at, admin: { id, email, name } }`, token valid 12 h. `401 LOGIN_INVALID` (same for unknown email and wrong password), `429 LOGIN_RATE_LIMITED` (5 failures per email or 10 per IP in 15 min) |
 | GET | `/admin/auth/me` | | `{ id, email, name }`. `401 ADMIN_AUTH_REQUIRED` if the token expired or the admin was signed out, deactivated or had their password changed |
 
+### Race-office time corrections (admin, E17)
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/admin/runners/{bib}/scans` | | `{ bib_number, full_name, category_code, status, checkpoints: [{ checkpoint_id, checkpoint_code, checkpoint_name, distance_km, scanned_at, elapsed_seconds, entry: "qr"\|"manual"\|"office", device_id }], history: [{ action: "add"\|"correct"\|"remove", checkpoint_id, checkpoint_name, previous, new, reason, admin_name, created_at }] }` (history newest first) |
+| PUT | `/admin/runners/{bib}/scans/{checkpoint_id}` | `{ scanned_at, reason }`: a time **with its zone** (e.g. `2027-03-06T08:41:07+01:00`), reason 5+ characters | `{ action: "add"\|"correct", checkpoint }`. The time wins over phone scans (later uploads never overwrite it), refreshes the leaderboard and is sent on `/stream/results`. `404 RUNNER_NOT_FOUND` / `CHECKPOINT_NOT_FOUND`, `409 WRONG_COURSE`, `422 TIME_IN_FUTURE` |
+| DELETE | `/admin/runners/{bib}/scans/{checkpoint_id}?reason=` | | `{ action: "remove", checkpoint }`. `404 SCAN_NOT_FOUND` |
+
+Every change is stored in `scan_corrections` with the values before and after, so the original time is never lost. `{bib}` accepts short forms such as `h42`.
+
 ## Sponsors (tiers and pledges owned by Backend newbie, payments by Lead)
 
 | Method | Path | Body | Response |

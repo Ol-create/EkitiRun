@@ -33,4 +33,5 @@ class Scan(UUIDPk, Base):
         DateTime(timezone=True), server_default=func.now()
     )
     clock_offset_ms: Mapped[int | None] = mapped_column(Integer)
+    # qr / manual (typed on a scanner phone) / office (set by the race office, E17)
     entry: Mapped[str] = mapped_column(String(8), default="qr", server_default="qr")
