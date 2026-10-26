@@ -20,8 +20,8 @@ async def request_otp(
     redis: RedisDep,
     sms: SmsSenderDep,
 ) -> Response:
-    # TODO(E12): behind the production proxy, run uvicorn with --proxy-headers
-    # so this is the runner's IP and not the load balancer's.
+    # Behind the hosting load balancer, uvicorn runs with --proxy-headers (Dockerfile),
+    # so this is the runner's IP, not the balancer's.
     client_ip = request.client.host if request.client else "unknown"
     await service.request_otp(session, redis, sms, body.phone, client_ip)
     return Response(status_code=204)

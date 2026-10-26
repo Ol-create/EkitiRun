@@ -18,12 +18,14 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+# Schema changes go over a direct connection, not a transaction pooler.
+DATABASE_URL = settings.migration_database_url or settings.database_url
 
 
 def run_migrations_offline() -> None:
     """Emit SQL to stdout instead of running it (`alembic upgrade head --sql`)."""
     context.configure(
-        url=settings.database_url,
+        url=DATABASE_URL,
         target_metadata=target_metadata,
         literal_binds=True,
         compare_type=True,
@@ -39,7 +41,7 @@ def do_run_migrations(connection) -> None:
 
 
 async def run_migrations_online() -> None:
-    engine = create_async_engine(settings.database_url)
+    engine = create_async_engine(DATABASE_URL)
     async with engine.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await engine.dispose()

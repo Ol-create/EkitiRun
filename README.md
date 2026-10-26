@@ -4,6 +4,7 @@ Race platform for the Ekiti Marathon: free runner registration, sponsor payments
 
 - Team task split: [docs/tasks/README.md](docs/tasks/README.md) (PDF: [docs/ekitirun-task-split.pdf](docs/ekitirun-task-split.pdf))
 - API contract: [docs/api-contract.md](docs/api-contract.md)
+- Deploying: [docs/deploy.md](docs/deploy.md) · Race day: [docs/runbook.md](docs/runbook.md)
 - Task board: GitHub Projects → **EkitiRun v1**
 
 ## Collaborators
@@ -291,6 +292,18 @@ CI (`.github/workflows/ci.yml`) runs these on every pull request, and a PR can't
 `uv run ruff format .` fixes formatting for you; CI only checks it.
 
 **Adding a package:** frontend `pnpm --filter web add <package>`; API `uv add <package>` in `apps/api`. Commit the updated lockfile with your change. New npm packages that run install scripts must be approved by Lead (`allowBuilds` in `pnpm-workspace.yaml`).
+
+## Race-week scripts
+
+All from `apps/api` (or the API's shell on the host):
+
+| Script | What it does |
+|---|---|
+| `python -m scripts.preflight` | Race-readiness check: settings, database, migrations, Redis, PINs, trackers, demo data. Exits 1 on any FAIL |
+| `python -m scripts.export_results` | Results as CSV, one file per race (`results/`): publishing, prizes, the manual fallback |
+| `python -m scripts.checkpoint_pins` | Make scanner PINs (printed once) |
+| `python -m scripts.demo_race ...` | Demo race / load generator (see above) |
+| `python -m scripts.loadtest_fixtures` | Credentials for the Locust load test (`apps/api/loadtest/`, see the runbook) |
 
 ## Troubleshooting
 

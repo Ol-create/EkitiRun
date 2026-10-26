@@ -20,7 +20,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from redis.asyncio import Redis
-from sqlalchemy import func, literal_column, select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -82,26 +82,27 @@ def _corrected(table: Any) -> ColumnElement[datetime]:
     )
 
 
-async def _save(
-    session: AsyncSession,
-    scan: ScanIn,
-    runner_id: uuid.UUID,
-    checkpoint_id: int,
-    device_id: str,
-    offset_ms: int | None,
-) -> bool:
-    """Insert, or replace a later scan of this runner here. True if saved."""
-    stmt = insert(Scan).values(
-        id=uuid.uuid4(),
-        client_id=scan.client_id,
-        runner_id=runner_id,
-        checkpoint_id=checkpoint_id,
-        device_id=device_id,
-        scanned_at=scan.scanned_at,
-        clock_offset_ms=offset_ms,
-        entry=scan.entry,
-    )
-    upsert: Any = stmt.on_conflict_do_update(
+def _row(scan: ScanIn, runner_id: uuid.UUID, checkpoint_id: int, device_id: str,
+         offset_ms: int | None) -> dict[str, Any]:  # fmt: skip
+    return {
+        "id": uuid.uuid4(),
+        "client_id": scan.client_id,
+        "runner_id": runner_id,
+        "checkpoint_id": checkpoint_id,
+        "device_id": device_id,
+        "scanned_at": scan.scanned_at,
+        "clock_offset_ms": offset_ms,
+        "entry": scan.entry,
+    }
+
+
+def _upsert(rows: list[dict[str, Any]]) -> Any:
+    """Insert scans; where a runner already has a scan here, keep the earlier one.
+
+    Returns the client_ids that were saved (inserted, or replaced a later scan).
+    """
+    stmt = insert(Scan).values(rows)
+    return stmt.on_conflict_do_update(
         constraint="uq_scans_runner_checkpoint",
         set_={
             "client_id": stmt.excluded.client_id,
@@ -112,12 +113,30 @@ async def _save(
             "received_at": func.now(),
         },
         where=_corrected(stmt.excluded) < _corrected(Scan.__table__.c),
-    ).returning(literal_column("1"))
+    ).returning(Scan.client_id)
+
+
+async def _save_many(session: AsyncSession, rows: list[dict[str, Any]]) -> set[uuid.UUID]:
+    """Save a batch in one statement. Returns the client_ids that were saved.
+
+    `rows` must have at most one row per runner and per client_id. If another upload
+    with the same client_id lands at the same moment (a retry racing itself), the
+    batch statement fails; then each row is tried on its own so the rest still save.
+    """
+    if not rows:
+        return set()
     try:
-        async with session.begin_nested():  # a clash on client_id only undoes this scan
-            return (await session.execute(upsert)).first() is not None
+        async with session.begin_nested():
+            return set(await session.scalars(_upsert(rows)))
     except IntegrityError:
-        return False  # the same client_id arrived twice at once: a retry
+        saved = set()
+        for row in rows:
+            try:
+                async with session.begin_nested():  # a clash only undoes this one scan
+                    saved |= set(await session.scalars(_upsert([row])))
+            except IntegrityError:
+                pass
+        return saved
 
 
 async def _publish(
@@ -194,38 +213,69 @@ async def ingest_batch(
         )
     )
 
-    results = []
-    changed_categories: set[int] = set()
-    saved_scans: list[tuple[str, int, ScanIn]] = []  # (bib, category id, scan) for live events
-    for scan, qr_runner_id, bib, reason in wanted:
+    # 1. Classify each scan; 2. pick the rows to save; 3. save them in one statement.
+    statuses: dict[int, ScanResult] = {}
+    candidates: list[
+        tuple[int, ScanIn, uuid.UUID, str, int]
+    ] = []  # (index, scan, runner, bib, cat)
+    for i, (scan, qr_runner_id, bib, reason) in enumerate(wanted):
         found = runners.get(bib) if bib else None
         if reason is None and (found is None or (qr_runner_id and found[0] != qr_runner_id)):
             reason = "unknown_bib"
         if reason is None and found and found[1] != checkpoint.route_id:
             reason = "wrong_course"
-        if reason is not None or found is None:
-            results.append(
-                ScanResult(
-                    client_id=scan.client_id, status="invalid", bib_number=bib, reason=reason
-                )
+        if reason is not None or found is None or bib is None:
+            statuses[i] = ScanResult(
+                client_id=scan.client_id, status="invalid", bib_number=bib, reason=reason
             )
-            continue
-        if scan.client_id in already:
-            saved = False
         else:
-            saved = await _save(session, scan, found[0], checkpoint.id, device_id, offset_ms)
-        if saved and bib:
-            changed_categories.add(found[2])
-            saved_scans.append((bib, found[2], scan))
-        results.append(
-            ScanResult(
-                client_id=scan.client_id,
-                status="accepted" if saved else "duplicate",
-                bib_number=bib,
-            )
+            candidates.append((i, scan, found[0], bib, found[2]))
+
+    # One row per runner (their earliest scan here) and per client_id; retries are skipped.
+    chosen: dict[uuid.UUID, tuple[int, ScanIn, uuid.UUID, str, int]] = {}
+    seen_clients: set[uuid.UUID] = set()
+    for candidate in candidates:
+        _, scan, runner_id, _, _ = candidate
+        if scan.client_id in already or scan.client_id in seen_clients:
+            continue
+        seen_clients.add(scan.client_id)
+        current = chosen.get(runner_id)
+        if current is None or scan.scanned_at < current[1].scanned_at:
+            chosen[runner_id] = candidate
+    rows = [
+        _row(scan, runner_id, checkpoint.id, device_id, offset_ms)
+        for _, scan, runner_id, _, _ in chosen.values()
+    ]
+    saved_ids = await _save_many(session, rows)
+
+    changed_categories: set[int] = set()
+    saved_scans: list[tuple[str, int, ScanIn]] = []  # (bib, category id, scan) for live events
+    published: set[uuid.UUID] = set()
+    for i, scan, _runner_id, bib, category_id in candidates:
+        saved = scan.client_id in saved_ids
+        if saved and scan.client_id not in published:
+            published.add(scan.client_id)
+            changed_categories.add(category_id)
+            saved_scans.append((bib, category_id, scan))
+        statuses[i] = ScanResult(
+            client_id=scan.client_id, status="accepted" if saved else "duplicate", bib_number=bib
         )
+    # The same client_id twice in one batch: only the first copy counts as saved.
+    reported: set[uuid.UUID] = set()
+    results = []
+    for i in range(len(wanted)):
+        result = statuses[i]
+        if result.status == "accepted" and result.client_id in reported:
+            result = result.model_copy(update={"status": "duplicate"})
+        reported.add(result.client_id)
+        results.append(result)
 
     await session.commit()
-    await timing.mark_changed(redis, changed_categories)  # standings rebuild on next read
-    await _publish(session, redis, checkpoint, saved_scans, offset_ms)
+    # The scans are saved. Telling the leaderboard and live pages is best effort: if Redis
+    # is down the phone must still hear "accepted", or it would keep resending.
+    try:
+        await timing.mark_changed(redis, changed_categories)  # standings rebuild on next read
+        await _publish(session, redis, checkpoint, saved_scans, offset_ms)
+    except Exception as exc:
+        log.warning("Scans saved, but live updates failed (Redis?): %s", exc)
     return ScanBatchOut(results=results)

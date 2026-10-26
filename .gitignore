@@ -21,3 +21,9 @@ apps/api/pdf-preview/
 
 # Traccar settings with the gateway secret (copy infra/traccar/traccar.example.xml)
 infra/traccar/traccar.xml
+
+# Results exported by scripts/export_results.py
+apps/api/results/
+
+# Load-test credentials (scripts/loadtest_fixtures.py)
+apps/api/loadtest/fixtures.json

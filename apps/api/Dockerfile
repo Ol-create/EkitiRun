@@ -10,4 +10,10 @@ COPY pyproject.toml uv.lock ./
 RUN uv export --frozen --no-dev --no-hashes --no-emit-project -o /tmp/requirements.txt \
     && uv pip install --system --no-cache -r /tmp/requirements.txt
 COPY . .
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Don't run as root.
+RUN useradd --create-home --uid 10001 app && chown -R app /code
+USER app
+# --proxy-headers: behind the host's load balancer, see the real client IP (rate limits).
+# WEB_CONCURRENCY: API processes per container (each keeps its own pub/sub fan-out).
+# PORT: set by the host (Render); 8000 locally.
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*' --workers ${WEB_CONCURRENCY:-1}"]

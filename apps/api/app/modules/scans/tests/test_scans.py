@@ -13,7 +13,7 @@ from app.models import Category, Checkpoint, Route, Runner, Scan, ScannerDevice
 from app.modules.registrations import service as registrations
 from app.modules.registrations.schemas import RegistrationIn
 from app.modules.scans import service
-from app.modules.scans.schemas import ScanBatchIn
+from app.modules.scans.schemas import ScanBatchIn, ScanIn
 from scripts.seed import seed
 
 API = "/api/v1/scans/batch"
@@ -275,3 +275,51 @@ async def test_simultaneous_uploads_keep_the_earliest(committed_runner):
         rows = list(await s.scalars(select(Scan).where(Scan.runner_id == runner.id)))
     assert len(rows) == 1
     assert rows[0].scanned_at == T0 + timedelta(seconds=5)  # the earliest of 10..5 s
+
+
+async def test_same_runner_twice_in_one_batch_keeps_the_earlier(db_client, session, race):
+    runner, _, cp10 = race
+    later = scan(qr(runner), at=T0 + timedelta(seconds=30))
+    earlier = scan(qr(runner), at=T0)
+
+    results = await upload(db_client, cp10, [later, earlier])
+
+    assert [r["status"] for r in results] == ["duplicate", "accepted"]
+    [saved] = await saved_scans(session, runner)
+    assert saved.scanned_at == T0
+
+
+async def test_batch_survives_a_racing_retry(session, race):
+    """A client_id saved by another request between our check and our insert: the batch
+    statement fails, the fallback saves the other rows one by one."""
+    half_runner, full_runner, cp10 = race
+    cp5 = await session.scalar(
+        select(Checkpoint).where(Checkpoint.route_id == cp10.route_id, Checkpoint.code == "CP5")
+    )
+    clash = uuid.uuid4()
+    session.add(Scan(client_id=clash, runner_id=full_runner.id, checkpoint_id=cp5.id,
+                     device_id=PHONE_B, scanned_at=T0))  # fmt: skip
+    await session.flush()
+    racing = service._row(ScanIn(client_id=clash, qr_token="x", scanned_at=T0),
+                          half_runner.id, cp10.id, PHONE_A, None)  # fmt: skip
+    fresh = service._row(ScanIn(client_id=uuid.uuid4(), qr_token="y", scanned_at=T0),
+                         full_runner.id, cp10.id, PHONE_A, None)  # fmt: skip
+
+    saved = await service._save_many(session, [racing, fresh])
+
+    assert saved == {fresh["client_id"]}
+
+
+async def test_scans_are_accepted_even_if_live_updates_fail(db_client, session, race, monkeypatch):
+    """Redis down: the scan is saved, so the phone must hear "accepted" and stop resending."""
+    runner, _, cp10 = race
+
+    async def redis_down(*args, **kwargs):
+        raise ConnectionError("redis down")
+
+    monkeypatch.setattr(service.timing, "mark_changed", redis_down)
+
+    [result] = await upload(db_client, cp10, [scan(qr(runner))])
+
+    assert result["status"] == "accepted"
+    assert len(await saved_scans(session, runner)) == 1

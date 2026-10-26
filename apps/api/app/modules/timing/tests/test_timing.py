@@ -287,3 +287,17 @@ async def test_mark_and_undo_dnf(db_client, race, field):
     assert {i["full_name"]: i["status"] for i in after_dnf}["Chi Test"] == "dnf"
     assert undone.json()["status"] == "registered"
     assert {i["full_name"]: i["status"] for i in after_undo}["Chi Test"] == "started"
+
+
+async def test_rebuilds_happen_at_most_every_few_seconds(session, redis, race, field, monkeypatch):
+    monkeypatch.setattr(timing, "MIN_REBUILD_S", 3)
+    first = await timing.standings(session, redis, race.half)
+    await race.scan(field["chi"], "FINISH", 80)
+    await timing.mark_changed(redis, {race.half.id})
+
+    soon = await timing.standings(session, redis, race.half)
+    await redis.delete(f"standings:{race.half.id}:recent")  # 3 s later
+    later = await timing.standings(session, redis, race.half)
+
+    assert soon == first
+    assert later[0].full_name == "Chi Test"

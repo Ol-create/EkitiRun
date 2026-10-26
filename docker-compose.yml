@@ -15,6 +15,7 @@ services:
 
   api:
     build: ./apps/api
+    user: root # development only: write access to the mounted source folder
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     env_file: ./apps/api/.env
     ports: ["8000:8000"]
@@ -23,6 +24,7 @@ services:
 
   worker:
     build: ./apps/api
+    user: root # development only: write access to the mounted source folder
     command: arq app.workers.settings.WorkerSettings
     env_file: ./apps/api/.env
     volumes: ["./apps/api:/code"]
@@ -31,6 +33,7 @@ services:
   # Moves GPS points from the Redis stream into Postgres (E13). Needed whenever trackers report.
   gps-writer:
     build: ./apps/api
+    user: root # development only: write access to the mounted source folder
     command: python -m app.workers.gps_writer
     env_file: ./apps/api/.env
     volumes: ["./apps/api:/code"]

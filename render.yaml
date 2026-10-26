@@ -1,0 +1,112 @@
+# Render blueprint for the EkitiRun backend (E12). See docs/deploy.md.
+#
+# Creates: the API, the background worker (PDFs, nightly GPS clean-up), the GPS
+# writer, and Redis. Postgres is on Neon (DATABASE_URL), the web app on Vercel.
+# Region: Frankfurt, the closest Render region to Nigeria. Put Neon in AWS
+# eu-central-1 (Frankfurt) too, so the API and database are close together.
+#
+# Values marked `sync: false` are entered in the Render dashboard when the
+# blueprint is first applied; they never live in this file.
+
+services:
+  - type: web
+    name: ekitirun-api
+    runtime: docker
+    region: frankfurt
+    plan: standard # scale up in race week (more instances / a bigger plan)
+    dockerContext: ./apps/api
+    dockerfilePath: ./apps/api/Dockerfile
+    healthCheckPath: /health
+    preDeployCommand: alembic upgrade head
+    envVars:
+      - key: WEB_CONCURRENCY
+        value: "2"
+      - key: REDIS_URL
+        fromService: { type: keyvalue, name: ekitirun-redis, property: connectionString }
+      - fromGroup: ekitirun-settings
+
+  - type: worker
+    name: ekitirun-worker
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerContext: ./apps/api
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerCommand: arq app.workers.settings.WorkerSettings
+    envVars:
+      - key: REDIS_URL
+        fromService: { type: keyvalue, name: ekitirun-redis, property: connectionString }
+      - fromGroup: ekitirun-settings
+
+  - type: worker
+    name: ekitirun-gps-writer
+    runtime: docker
+    region: frankfurt
+    plan: standard
+    dockerContext: ./apps/api
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerCommand: python -m app.workers.gps_writer
+    envVars:
+      - key: REDIS_URL
+        fromService: { type: keyvalue, name: ekitirun-redis, property: connectionString }
+      - fromGroup: ekitirun-settings
+
+  - type: keyvalue
+    name: ekitirun-redis
+    region: frankfurt
+    plan: standard
+    # Streams, pub/sub and the leaderboard cache must never be silently evicted.
+    maxmemoryPolicy: noeviction
+    ipAllowList: [] # only Render services in this account can connect
+
+envVarGroups:
+  - name: ekitirun-settings
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL # Neon pooled URL: postgresql+asyncpg://...-pooler...
+        sync: false
+      - key: MIGRATION_DATABASE_URL # Neon direct URL (host without -pooler)
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: QR_SIGNING_SECRET
+        generateValue: true # never change it after bibs are printed: printed QRs would stop scanning
+      - key: GATEWAY_SECRET
+        generateValue: true
+      - key: KIT_PIN
+        sync: false
+      - key: SMS_PROVIDER
+        value: termii
+      - key: TERMII_API_KEY
+        sync: false
+      - key: TERMII_BASE_URL
+        sync: false
+      - key: TERMII_SENDER_ID
+        value: EkitiRun
+      - key: PAYMENT_PROVIDER
+        value: paystack
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: OTP_DEV_CODE
+        value: ""
+      - key: PUBLIC_API_URL # e.g. https://api.ekitirun.ng
+        sync: false
+      - key: PUBLIC_WEB_URL # e.g. https://ekitirun.ng
+        sync: false
+      - key: CORS_ORIGINS # the web URL(s), comma-separated
+        sync: false
+      - key: RACE_DATE
+        sync: false
+      - key: ORGANISER_NAME
+        sync: false
+      - key: ORGANISER_ADDRESS
+        sync: false
+      - key: ORGANISER_EMAIL
+        sync: false
+      - key: BANK_NAME
+        sync: false
+      - key: BANK_ACCOUNT_NAME
+        sync: false
+      - key: BANK_ACCOUNT_NUMBER
+        sync: false

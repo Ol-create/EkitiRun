@@ -14,6 +14,12 @@ class Settings(BaseSettings):
 
     environment: Literal["development", "test", "production"] = "development"
     database_url: str = "postgresql+asyncpg://ekitirun:ekitirun@localhost:5433/ekitirun"
+    # Migrations only: a direct (non-pooled) connection, e.g. Neon's host without "-pooler".
+    # Empty = use DATABASE_URL.
+    migration_database_url: str | None = None
+    # Connections per API process. Keep (pool + overflow) x processes under the database limit.
+    db_pool_size: int = 10
+    db_max_overflow: int = 10
     redis_url: str = "redis://localhost:6379/0"
     jwt_secret: str = INSECURE_DEFAULT
     qr_signing_secret: str = INSECURE_DEFAULT
@@ -67,7 +73,7 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
 
-    @field_validator("otp_dev_code", "race_date", mode="before")
+    @field_validator("otp_dev_code", "race_date", "migration_database_url", mode="before")
     @classmethod
     def empty_is_none(cls, v):
         return v or None

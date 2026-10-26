@@ -29,6 +29,7 @@ from app.core.redis import get_redis
 from app.core.sms import get_sms_sender
 from app.main import app
 from app.models import Base
+from app.modules.timing import service as timing
 from app.workers import queue
 
 TEST_DATABASE_URL = os.environ.get(
@@ -68,6 +69,13 @@ def sms() -> Iterator[FakeSms]:
     app.dependency_overrides[get_sms_sender] = lambda: fake
     yield fake
     app.dependency_overrides.pop(get_sms_sender, None)
+
+
+@pytest.fixture(autouse=True)
+def instant_standings(monkeypatch) -> None:
+    """Tests expect "mark changed, then read" to show the change at once; production
+    rebuilds at most every 3 s (tested on its own in the timing tests)."""
+    monkeypatch.setattr(timing, "MIN_REBUILD_S", 0)
 
 
 @pytest.fixture(autouse=True)

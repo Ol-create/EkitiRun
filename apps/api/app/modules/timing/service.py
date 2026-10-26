@@ -18,8 +18,9 @@ among runners of the same gender.
 
 Caching
 Standings live in Redis, so spectators never hit Postgres. Each scan batch marks
-its categories as changed; the next read rebuilds them. Only one request rebuilds
-at a time (a short Redis lock): the others are served the previous standings.
+its categories as changed; the next read rebuilds them, but at most once every
+3 s per category. Only one request rebuilds at a time (a short Redis lock): the
+others are served the previous standings.
 
 For Backend (B3): use `get_runner_result()` for a runner's splits and positions.
 """
@@ -37,6 +38,9 @@ from app.models import Category, Checkpoint, Runner, Scan
 
 CACHE_TTL_S = 3600  # safety net: standings are rebuilt on change anyway
 LOCK_TTL_S = 10
+# At most one rebuild per category every 3 s: with 20 scanners uploading, a rebuild
+# per upload would keep the database busy for nothing (pages refresh every 5 s).
+MIN_REBUILD_S = 3
 
 
 @dataclass
@@ -169,9 +173,9 @@ async def compute_standings(session: AsyncSession, category: Category) -> list[S
 # ---------------------------------------------------------------- cache
 
 
-def _keys(category_id: int) -> tuple[str, str, str]:
+def _keys(category_id: int) -> tuple[str, str, str, str]:
     base = f"standings:{category_id}"
-    return base, f"{base}:dirty", f"{base}:lock"
+    return base, f"{base}:dirty", f"{base}:lock", f"{base}:recent"
 
 
 async def mark_changed(redis: Redis, category_ids: set[int]) -> None:
@@ -182,10 +186,10 @@ async def mark_changed(redis: Redis, category_ids: set[int]) -> None:
 
 async def standings(session: AsyncSession, redis: Redis, category: Category) -> list[Standing]:
     """The category's standings, from Redis when up to date."""
-    data_key, dirty_key, lock_key = _keys(category.id)
-    cached, dirty = await redis.mget(data_key, dirty_key)
-    if cached is not None and not dirty:
-        return [Standing(**s) for s in json.loads(cached)]
+    data_key, dirty_key, lock_key, recent_key = _keys(category.id)
+    cached, dirty, recent = await redis.mget(data_key, dirty_key, recent_key)
+    if cached is not None and (not dirty or recent):
+        return [Standing(**s) for s in json.loads(cached)]  # up to date, or rebuilt < 3 s ago
 
     locked = bool(await redis.set(lock_key, "1", nx=True, ex=LOCK_TTL_S))
     if cached is not None and not locked:
@@ -196,6 +200,8 @@ async def standings(session: AsyncSession, redis: Redis, category: Category) -> 
         await redis.delete(dirty_key)  # changes arriving during the rebuild mark it again
         fresh = await compute_standings(session, category)
         await redis.set(data_key, json.dumps([asdict(s) for s in fresh]), ex=CACHE_TTL_S)
+        if MIN_REBUILD_S > 0:
+            await redis.set(recent_key, "1", ex=MIN_REBUILD_S)
         return fresh
     finally:
         if locked:
