@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from fakeredis.aioredis import FakeRedis
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -266,7 +267,7 @@ async def test_simultaneous_uploads_keep_the_earliest(committed_runner):
                 checkpoint_id=checkpoint.id,
                 scans=[scan(token, at=T0 + timedelta(seconds=seconds))],
             )
-            return await service.ingest_batch(s, phone, body)
+            return await service.ingest_batch(s, FakeRedis(), phone, body)
 
     await asyncio.gather(*(upload_as(f"phone-{i:04d}-xxxx", 10 - i) for i in range(6)))
 

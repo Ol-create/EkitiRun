@@ -19,6 +19,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from redis.asyncio import Redis
 from sqlalchemy import func, literal_column, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
@@ -30,6 +31,7 @@ from app.core.security import parse_qr_token
 from app.models import Category, Checkpoint, Runner, Scan, ScannerDevice
 from app.models.scanner_device import CLOCK_TOLERANCE_MS
 from app.modules.scans.schemas import InvalidReason, ScanBatchIn, ScanBatchOut, ScanIn, ScanResult
+from app.modules.timing import service as timing
 
 log = logging.getLogger("ekitirun.scans")
 TYPED_BIB = re.compile(r"^([A-Z])\s*0*(\d{1,4})$")
@@ -116,7 +118,9 @@ async def _save(
         return False  # the same client_id arrived twice at once: a retry
 
 
-async def ingest_batch(session: AsyncSession, device_id: str, body: ScanBatchIn) -> ScanBatchOut:
+async def ingest_batch(
+    session: AsyncSession, redis: Redis, device_id: str, body: ScanBatchIn
+) -> ScanBatchOut:
     checkpoint = await session.get(Checkpoint, body.checkpoint_id)
     if checkpoint is None:
         raise AppError(401, "SCANNER_AUTH_REQUIRED", "This checkpoint no longer exists.")
@@ -141,9 +145,9 @@ async def ingest_batch(session: AsyncSession, device_id: str, body: ScanBatchIn)
 
     bibs = {bib for _, _, bib, reason in wanted if bib and not reason}
     runners = {
-        bib: (rid, route_id)
-        for rid, bib, route_id in await session.execute(
-            select(Runner.id, Runner.bib_number, Category.route_id)
+        bib: (rid, route_id, category_id)
+        for rid, bib, route_id, category_id in await session.execute(
+            select(Runner.id, Runner.bib_number, Category.route_id, Category.id)
             .join(Category, Category.id == Runner.category_id)
             .where(Runner.bib_number.in_(bibs))
         )
@@ -155,6 +159,7 @@ async def ingest_batch(session: AsyncSession, device_id: str, body: ScanBatchIn)
     )
 
     results = []
+    changed_categories: set[int] = set()
     for scan, qr_runner_id, bib, reason in wanted:
         found = runners.get(bib) if bib else None
         if reason is None and (found is None or (qr_runner_id and found[0] != qr_runner_id)):
@@ -172,6 +177,8 @@ async def ingest_batch(session: AsyncSession, device_id: str, body: ScanBatchIn)
             saved = False
         else:
             saved = await _save(session, scan, found[0], checkpoint.id, device_id, offset_ms)
+        if saved:
+            changed_categories.add(found[2])
         results.append(
             ScanResult(
                 client_id=scan.client_id,
@@ -181,4 +188,5 @@ async def ingest_batch(session: AsyncSession, device_id: str, body: ScanBatchIn)
         )
 
     await session.commit()
+    await timing.mark_changed(redis, changed_categories)  # standings rebuild on next read
     return ScanBatchOut(results=results)

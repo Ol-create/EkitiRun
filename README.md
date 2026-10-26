@@ -208,6 +208,15 @@ Volunteers open `/scanner` on a phone, enter their checkpoint's 6-digit PIN, and
 - Scans that couldn't be uploaded stay on the phone, even after logging out or closing the browser, and upload after logging in to the same checkpoint again.
 - **Phone clocks:** each upload measures how far the phone's clock is off, and timing corrects for it. Phones off by more than 2 minutes are listed first in `GET /api/v1/scanner/devices` (admin): ask that volunteer to turn on automatic date and time.
 
+## Race-day timing
+
+Times and places come from checkpoint scans (the timing engine, `app/modules/timing`).
+
+- **Record each gun start** the moment the gun goes: `POST /api/v1/admin/categories/{id}/gun-start` with `{}` (= now), or `{"at": "2027-03-06T06:30:00+01:00"}` to set it afterwards. Every elapsed time counts from it; changing it later recalculates everything.
+- **Did not finish:** `POST /api/v1/admin/runners/{bib}/dnf` (and `DELETE` to undo a mistake).
+- Phone clock drift is corrected automatically, and when a runner is scanned twice at a checkpoint the earliest time counts.
+- The leaderboard is cached in Redis and refreshes after every scan upload, so spectators never load the database.
+
 ## Background jobs and PDFs
 
 The `worker` service runs background jobs (ARQ, using Redis): sponsor invoices are rendered when a pledge is created and receipts when it is paid. Every 5 minutes it also renders any document that was missed. PDFs are stored in Postgres and served at `/api/v1/files/...`.

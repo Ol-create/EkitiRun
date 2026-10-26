@@ -17,6 +17,7 @@ from app.modules.runners.router import router as runners_router
 from app.modules.scanner.router import router as scanner_router
 from app.modules.scans.router import router as scans_router
 from app.modules.sponsors.router import router as sponsors_router
+from app.modules.timing.router import router as timing_router
 from app.modules.trackers.router import router as trackers_router
 from app.stubs.router import router as stub_files_router
 
@@ -49,6 +50,7 @@ for router in (
     trackers_router,
     kit_router,
     files_router,
+    timing_router,
 ):
     app.include_router(router, prefix="/api/v1")
 

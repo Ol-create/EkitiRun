@@ -90,7 +90,7 @@ You own the architecture and everything risky: data, auth, money, the scanner, a
 
 ### E10: Position estimate (4 pts)
 
-- Helper `estimatePosition(route, checkpoints, lastSplit, pace, now)` in `apps/web/lib/tracking.ts` (turf.js), returning `{ lat, lng, distance_km, is_estimate }`.
+- Helper `estimatePosition(route, checkpoints, splits, status, now?, pace?)` in `apps/web/lib/tracking.ts` (turf.js), returning `{ lat, lng, distance_km, is_estimate }`. Pace comes from the runner's last two splits unless given.
 - Stop the estimate at the next checkpoint so a runner never appears ahead of where they could be.
 - Unit tests. Frontend 2 calls this helper; they don't change it.
 

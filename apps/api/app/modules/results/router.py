@@ -6,6 +6,8 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Query
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 
+from app.core.deps import SessionDep
+from app.core.redis import RedisDep
 from app.modules.results import service
 from app.modules.results.schemas import ResultsPage
 
@@ -18,8 +20,11 @@ async def get_results(
     gender: Literal["M", "F"] | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
+    *,
+    session: SessionDep,
+    redis: RedisDep,
 ) -> ResultsPage:
-    return await service.get_results(category, gender, limit, offset)
+    return await service.get_results(session, redis, category, gender, limit, offset)
 
 
 @router.get("/stream/results", response_class=EventSourceResponse)

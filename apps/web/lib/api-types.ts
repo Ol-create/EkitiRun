@@ -526,6 +526,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/categories/{category_id}/gun-start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Gun Start
+         * @description Record the category's start time. All elapsed times are measured from it.
+         */
+        post: operations["gun_start_api_v1_admin_categories__category_id__gun_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/runners/{bib_number}/dnf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Dnf
+         * @description Mark a runner as did-not-finish (dropped out, picked up by the sweeper bus).
+         */
+        post: operations["mark_dnf_api_v1_admin_runners__bib_number__dnf_post"];
+        /**
+         * Undo Dnf
+         * @description Undo a DNF marked by mistake. Status then comes from the runner's scans again.
+         */
+        delete: operations["undo_dnf_api_v1_admin_runners__bib_number__dnf_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -657,6 +701,26 @@ export interface components {
              * Format: date-time
              */
             recorded_at: string;
+        };
+        /** GunStartIn */
+        GunStartIn: {
+            /**
+             * At
+             * @description When the gun went. Leave empty for 'now' (tap at the gun).
+             */
+            at?: string | null;
+        };
+        /** GunStartOut */
+        GunStartOut: {
+            /** Category Id */
+            category_id: number;
+            /** Category Code */
+            category_code: string;
+            /**
+             * Gun Start At
+             * Format: date-time
+             */
+            gun_start_at: string;
         };
         /** KitAssignIn */
         KitAssignIn: {
@@ -994,6 +1058,13 @@ export interface components {
             full_name: string;
             /** Category Code */
             category_code: string;
+        };
+        /** RunnerStatusOut */
+        RunnerStatusOut: {
+            /** Bib Number */
+            bib_number: string;
+            /** Status */
+            status: string;
         };
         /** ScanBatchIn */
         ScanBatchIn: {
@@ -2560,6 +2631,163 @@ export interface operations {
                 };
                 content: {
                     "application/pdf": unknown;
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    gun_start_api_v1_admin_categories__category_id__gun_start_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                category_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GunStartIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GunStartOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    mark_dnf_api_v1_admin_runners__bib_number__dnf_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                bib_number: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunnerStatusOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    undo_dnf_api_v1_admin_runners__bib_number__dnf_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                bib_number: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunnerStatusOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Not Found */

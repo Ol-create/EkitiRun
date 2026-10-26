@@ -121,15 +121,6 @@ async def test_route(client):
     assert (await client.get(f"{API}/route", params={"category": "NOPE"})).status_code == 404
 
 
-async def test_results(client):
-    body = (await client.get(f"{API}/results", params={"category": "10K", "limit": 5})).json()
-    assert len(body["items"]) == 5
-    assert body["total"] >= 5
-    assert [i["position"] for i in body["items"]] == [1, 2, 3, 4, 5]
-    women = (await client.get(f"{API}/results", params={"gender": "F"})).json()["items"]
-    assert all(i["gender"] == "F" for i in women)
-
-
 # ---------------------------------------------------------------- GPS, trackers, kit
 
 
