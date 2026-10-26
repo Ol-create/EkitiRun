@@ -392,9 +392,33 @@ export interface paths {
         put?: never;
         /**
          * Ingest Positions
-         * @description Traccar gateway only (`X-Gateway-Secret` header).
+         * @description GPS gateway only (`X-Gateway-Secret`). Points are queued and saved within a second
+         *     or two; unknown or unassigned trackers are dropped then.
          */
         post: operations["ingest_positions_api_v1_gps_positions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gps/traccar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ingest Traccar
+         * @description Traccar's own JSON forwarding (`forward.type=json`): one position per request.
+         *
+         *     Point Traccar's `forward.url` here, with the secret in an `X-Gateway-Secret`
+         *     header (`forward.header`) or as `?secret=` in the URL.
+         */
+        post: operations["ingest_traccar_api_v1_gps_traccar_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2260,6 +2284,52 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["GpsBatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GpsBatchAccepted"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    ingest_traccar_api_v1_gps_traccar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-gateway-secret"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
             };
         };
         responses: {

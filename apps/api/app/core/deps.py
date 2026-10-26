@@ -3,10 +3,11 @@
 Newbies import from here (e.g. `require_admin`, `SessionDep`) but don't change it.
 """
 
+import hmac
 from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -30,9 +31,14 @@ async def require_admin(authorization: Annotated[str | None, Header()] = None) -
         raise AppError(401, "ADMIN_AUTH_REQUIRED", "Admin token missing or invalid")
 
 
-async def require_gateway(x_gateway_secret: Annotated[str | None, Header()] = None) -> None:
-    """GPS gateway (Traccar) only, authenticated with the `X-Gateway-Secret` header."""
-    if x_gateway_secret != settings.gateway_secret:
+async def require_gateway(
+    x_gateway_secret: Annotated[str | None, Header()] = None,
+    secret: Annotated[str | None, Query(include_in_schema=False)] = None,
+) -> None:
+    """GPS gateway (Traccar) only: the `X-Gateway-Secret` header, or `?secret=` for
+    gateways that can't add headers."""
+    given = x_gateway_secret or secret or ""
+    if not hmac.compare_digest(given.encode(), settings.gateway_secret.encode()):
         raise AppError(401, "GATEWAY_AUTH_REQUIRED", "Gateway secret missing or invalid")
 
 

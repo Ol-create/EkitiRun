@@ -14,11 +14,13 @@ from app.models.scan import Scan
 from app.models.scanner_device import ScannerDevice
 from app.models.sponsor import Pledge, Sponsor, SponsorTier
 from app.models.stored_file import StoredFile
+from app.models.tracker import GpsPosition, Tracker
 
 __all__ = [
     "Base",
     "Category",
     "Checkpoint",
+    "GpsPosition",
     "OtpCode",
     "Payment",
     "Pledge",
@@ -29,4 +31,5 @@ __all__ = [
     "Sponsor",
     "SponsorTier",
     "StoredFile",
+    "Tracker",
 ]

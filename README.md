@@ -218,6 +218,27 @@ Times and places come from checkpoint scans (the timing engine, `app/modules/tim
 - The leaderboard is cached in Redis and refreshes after every scan upload, so spectators never load the database.
 - **Live updates:** every accepted scan is published on the Redis channel `scans` and pushed to browsers on `GET /api/v1/stream/results` (Server-Sent Events, `?category=` for one race). Each API process keeps one Redis subscription and fans events out to all its viewers. Any proxy in front of the API must not buffer `text/event-stream` responses.
 
+## GPS trackers
+
+Every runner wears a GPS tracker, handed out at kit collection. **Checkpoint scans stay the official timing; GPS only drives the live maps.**
+
+    trackers --> Traccar (gateway) --> POST /api/v1/gps/traccar --> Redis stream --> gps-writer --> Postgres
+
+- **`gps-writer`** (always running in Docker Compose) moves points from the Redis stream into Postgres in batches. It keeps only points from trackers assigned to a runner, notes where each point falls on the course, and flags points more than 200 m off the course (stored, never shown). One writer handled about 5,000 points/s in testing; race day needs about 1,000 (5,000 runners every 5 s). Run more writers if needed: they share the stream.
+- **Traccar** receives each tracker's own protocol and forwards positions to the API. Locally it's optional: copy `infra/traccar/traccar.example.xml` to `infra/traccar/traccar.xml`, set the gateway secret in it, then `docker compose --profile gps up -d`. Web UI: http://localhost:8082. Without trackers, the free Traccar Client phone app (OsmAnd protocol, port 5055) is a handy test device.
+- **Privacy:** location history is deleted 30 days after it was recorded (nightly job in the `worker` service).
+
+### Tracker field test (before buying in bulk)
+
+Test about 10 units of the shortlisted tracker on the real course, carried at running pace:
+
+1. **Fix interval:** can it report every 5 to 10 s? Check the gaps between points in Traccar.
+2. **Battery:** still reporting after 6+ hours at that interval (the slowest marathoners plus kit-collection time).
+3. **Signal:** points arrive on every stretch of the course (look for gaps on the map), on the SIM network you'll use.
+4. **Accuracy:** points stay within about 20 m of the course (`off_route_m` in `gps_positions`).
+5. **Protocol:** Traccar supports it (most do); open that protocol's port in `docker-compose.yml`.
+6. **Practicalities:** how it's worn (bib clip or armband), charging 5,000 units, labelling (`TRK-0001`), data-SIM costs.
+
 ## Background jobs and PDFs
 
 The `worker` service runs background jobs (ARQ, using Redis): sponsor invoices are rendered when a pledge is created and receipts when it is paid. Every 5 minutes it also renders any document that was missed. PDFs are stored in Postgres and served at `/api/v1/files/...`.

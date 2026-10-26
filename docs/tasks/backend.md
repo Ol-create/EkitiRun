@@ -80,7 +80,7 @@ Module layout (copied from `categories/`): `router.py` (endpoints), `schemas.py`
 
 ## B5: Tracker inventory endpoints (2 pts)
 
-Code lives in `apps/api/app/modules/trackers/`. Lead owns the GPS ingestion and kit endpoints; you build the admin inventory.
+Code lives in `apps/api/app/modules/trackers/`. Lead owns the GPS ingestion and kit endpoints; you build the admin inventory. The `Tracker` model and its table already exist (`app/models/tracker.py`, from E13): replace the stub in `trackers/service.py` with queries on it. Keep its rule that a tracker is `assigned` exactly when it has a `runner_id`; assigning and returning are done by the kit endpoints (E15), not by you.
 
 **Acceptance criteria**
 - [ ] `GET /admin/trackers?status=` lists trackers with the assigned bib, battery and last-seen time, filterable by status.

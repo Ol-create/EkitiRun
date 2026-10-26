@@ -18,3 +18,6 @@ next-env.d.ts
 
 # PDF previews (scripts/render_pdf_preview.py)
 apps/api/pdf-preview/
+
+# Traccar settings with the gateway secret (copy infra/traccar/traccar.example.xml)
+infra/traccar/traccar.xml

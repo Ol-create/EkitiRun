@@ -1,7 +1,8 @@
 """Database and business logic for GPS tracking. Routers call this; it never imports FastAPI.
 
-STUB(E13, E14): positions come from the fake race in app/stubs/race.py. Real
-ingestion pushes to a Redis stream; real snapshots are served from Redis.
+Ingestion is real since E13 (app/modules/gps/ingest.py).
+STUB(E14): the live snapshot and position stream still come from the fake race in
+app/stubs/race.py.
 """
 
 import asyncio
@@ -9,14 +10,10 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 from app.core.errors import AppError
-from app.modules.gps.schemas import GpsBatchIn, PositionEvent, PositionsSnapshot, RunnerPosition
+from app.modules.gps.schemas import PositionEvent, PositionsSnapshot, RunnerPosition
 from app.stubs import race
 
 STREAM_TICK_S = 5.0
-
-
-async def ingest(body: GpsBatchIn) -> int:
-    return len(body.positions)
 
 
 async def snapshot(category: str | None) -> PositionsSnapshot:

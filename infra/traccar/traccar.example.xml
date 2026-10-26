@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>
+<!--
+  Traccar GPS gateway settings (E13). Copy to traccar.xml (git-ignored) and put the
+  API's GATEWAY_SECRET in forward.url / forward.header below.
+
+  Traccar receives each tracker's own protocol and forwards every position to the
+  EkitiRun API as JSON. Check these keys against the Traccar documentation for the
+  version in docker-compose.yml during the tracker field test.
+-->
+<properties>
+    <!-- Traccar's own small database (devices, raw history). EkitiRun keeps its own copy. -->
+    <entry key='database.driver'>org.h2.Driver</entry>
+    <entry key='database.url'>jdbc:h2:./data/database</entry>
+    <entry key='database.user'>sa</entry>
+    <entry key='database.password'></entry>
+
+    <!-- Accept every tracker without registering it in Traccar's web UI first:
+         EkitiRun decides which trackers count (assigned at kit collection). -->
+    <entry key='database.registerUnknown'>true</entry>
+
+    <!-- Forward every position to EkitiRun. -->
+    <entry key='forward.enable'>true</entry>
+    <entry key='forward.type'>json</entry>
+    <entry key='forward.url'>http://api:8000/api/v1/gps/traccar</entry>
+    <entry key='forward.header'>X-Gateway-Secret: dev-only-gateway-secret-32-characters</entry>
+    <!-- If this Traccar version ignores forward.header, use the URL instead:
+         http://api:8000/api/v1/gps/traccar?secret=<GATEWAY_SECRET> -->
+</properties>

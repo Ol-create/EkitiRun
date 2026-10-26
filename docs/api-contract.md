@@ -70,7 +70,8 @@ A `live_position` object, used below and in `GET /runners/{bib_number}`:
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| POST | `/gps/positions` | Gateway only, authenticated with the `X-Gateway-Secret` header. `{ positions: [{ device_id, lat, lng, accuracy_m?, battery_pct?, recorded_at }] }` | `202`. Unknown or unassigned devices are ignored. Points more than 200 m from the route are stored but not shown |
+| POST | `/gps/positions` | Gateway only, authenticated with the `X-Gateway-Secret` header. `{ positions: [{ device_id, lat, lng, accuracy_m?, battery_pct?, recorded_at }] }` | `202`. Unknown or unassigned devices are ignored. Points more than 200 m from the route are stored but not shown. Points are queued and saved by the GPS writer within a second or two; the response only counts what was queued. The secret can also be sent as `?secret=` |
+| POST | `/gps/traccar` | Gateway only (same secret). Traccar's own JSON forwarding (`forward.type=json`), one position per request: `{ position: { latitude, longitude, accuracy?, fixTime, attributes: { batteryLevel? } }, device: { uniqueId } }`. Returns `202 { accepted: 0 or 1 }` |
 | GET | `/positions?category=` | | `{ updated_at, runners: [{ bib_number, category_code, gender, lat, lng, distance_km, is_stale }] }`. Latest point for every runner on course, refreshed every 5 s and served from cache |
 | GET | `/stream/positions?bib=` | | Server-Sent Events for one runner. `event: position` with data `{ bib_number, ...live_position }`, sent on every new fix. Heartbeat every 15 s |
 | GET | `/admin/trackers?status=` | | `[{ id, device_id, label, status: "available"\|"assigned"\|"returned"\|"lost", bib_number?, battery_pct?, last_seen_at? }]`. Admin only |
@@ -95,6 +96,6 @@ While an endpoint is still a stub (Phase 0 to 2), it returns fake data and these
 | Runner search and detail, positions, position stream | A simulated race of 240 runners (bibs `F0001`–`F0050`, `H0001`–`H0070`, `T0001`–`T0060`, `R0001`–`R0060`). It starts about 100 minutes in when the API starts and loops every 6.5 hours, so there are always finishers, runners on course, DNFs, runners who never started, stale trackers and runners without one |
 | `POST /sponsors/pledges` | Still a stub until B2 (the Paystack side is real since E5). Skips Paystack: `authorization_url` goes straight to `/sponsors/thank-you`. A company name containing "fail" ends `failed`, one containing "pending" stays `pending`, anything else is `paid`. PDF links open a placeholder PDF |
 | Admin endpoints | Send `Authorization: Bearer dev-admin` (development only, until admin login exists) |
-| `POST /gps/positions` | Send `X-Gateway-Secret` with the value of `GATEWAY_SECRET` in `apps/api/.env` |
+| `POST /gps/positions`, `POST /gps/traccar` | **Real since E13.** Send `X-Gateway-Secret` with the value of `GATEWAY_SECRET` in `apps/api/.env`. Only points from trackers assigned to a runner are saved. `GET /positions` and `/stream/positions` stay simulated until E14 |
 | `POST /kit/assign`, `/kit/return` | `qr_token` can be a fake bib such as `R0005`. Trackers `TRK-0001`–`0030` are assigned, `TRK-0031`–`0039` are free, `TRK-0040` is lost |
 | `POST /scans/batch` | **Real since E8**: scans are saved for registered runners only (fake-race bibs are `invalid`) |

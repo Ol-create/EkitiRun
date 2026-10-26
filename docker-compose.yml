@@ -28,5 +28,29 @@ services:
     volumes: ["./apps/api:/code"]
     depends_on: [db, redis]
 
+  # Moves GPS points from the Redis stream into Postgres (E13). Needed whenever trackers report.
+  gps-writer:
+    build: ./apps/api
+    command: python -m app.workers.gps_writer
+    env_file: ./apps/api/.env
+    volumes: ["./apps/api:/code"]
+    depends_on: [db, redis]
+
+  # GPS gateway (E13): receives the trackers' own protocols and forwards positions to the API.
+  # Optional locally: `docker compose --profile gps up -d`. Needs infra/traccar/traccar.xml
+  # (copy traccar.example.xml). Web UI on http://localhost:8082.
+  traccar:
+    image: traccar/traccar:6.16.0
+    profiles: ["gps"]
+    ports:
+      - "8082:8082" # web UI
+      - "5023:5023" # GT06 protocol (many low-cost trackers): open the port your trackers use
+      - "5055:5055" # OsmAnd protocol: test with the Traccar Client phone app
+    volumes:
+      - ./infra/traccar/traccar.xml:/opt/traccar/conf/traccar.xml:ro
+      - traccar-data:/opt/traccar/data
+    depends_on: [api]
+
 volumes:
   db-data:
+  traccar-data:
