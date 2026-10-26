@@ -28,10 +28,16 @@ async def get_results(
 
 
 @router.get("/stream/results", response_class=EventSourceResponse)
-async def stream_results() -> AsyncIterable[ServerSentEvent]:
-    """Server-Sent Events: `event: scan` each time a runner passes a checkpoint.
+async def stream_results(
+    redis: RedisDep,
+    category: Annotated[
+        str | None, Query(description="Only this race, e.g. HALF. Empty = every race.")
+    ] = None,
+) -> AsyncIterable[ServerSentEvent]:
+    """Server-Sent Events: `event: scan` each time a runner is scanned at a checkpoint.
 
-    A keep-alive comment is sent every 15 s when nothing else happens.
+    A keep-alive comment is sent every 15 s when nothing else happens. Pages should
+    re-fetch what they show (throttled) rather than patch it from the event.
     """
-    async for scan in service.scan_events():
+    async for scan in service.scan_events(redis, category):
         yield ServerSentEvent(event="scan", data=scan)

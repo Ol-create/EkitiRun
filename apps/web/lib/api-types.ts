@@ -290,9 +290,10 @@ export interface paths {
         };
         /**
          * Stream Results
-         * @description Server-Sent Events: `event: scan` each time a runner passes a checkpoint.
+         * @description Server-Sent Events: `event: scan` each time a runner is scanned at a checkpoint.
          *
-         *     A keep-alive comment is sent every 15 s when nothing else happens.
+         *     A keep-alive comment is sent every 15 s when nothing else happens. Pages should
+         *     re-fetch what they show (throttled) rather than patch it from the event.
          */
         get: operations["stream_results_api_v1_stream_results_get"];
         put?: never;
@@ -2033,7 +2034,10 @@ export interface operations {
     };
     stream_results_api_v1_stream_results_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Only this race, e.g. HALF. Empty = every race. */
+                category?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;

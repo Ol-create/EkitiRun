@@ -216,6 +216,7 @@ Times and places come from checkpoint scans (the timing engine, `app/modules/tim
 - **Did not finish:** `POST /api/v1/admin/runners/{bib}/dnf` (and `DELETE` to undo a mistake).
 - Phone clock drift is corrected automatically, and when a runner is scanned twice at a checkpoint the earliest time counts.
 - The leaderboard is cached in Redis and refreshes after every scan upload, so spectators never load the database.
+- **Live updates:** every accepted scan is published on the Redis channel `scans` and pushed to browsers on `GET /api/v1/stream/results` (Server-Sent Events, `?category=` for one race). Each API process keeps one Redis subscription and fans events out to all its viewers. Any proxy in front of the API must not buffer `text/event-stream` responses.
 
 ## Background jobs and PDFs
 

@@ -1,22 +1,19 @@
 """Results and the live scan stream. Routers call this; it never imports FastAPI.
 
-GET /results reads the timing engine (E9).
-STUB(E11): the scan stream still replays the fake race in app/stubs/race.py.
+GET /results reads the timing engine (E9); /stream/results relays the `scans`
+Redis channel that scan ingestion publishes to (E11).
 """
 
-import asyncio
 from collections.abc import AsyncIterator
 
 from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.broadcast import broadcaster
 from app.models import Category
-from app.modules.results.schemas import ResultItem, ResultsPage, ScanEvent
+from app.modules.results.schemas import SCANS_CHANNEL, ResultItem, ResultsPage, ScanEvent
 from app.modules.timing import service as timing
-from app.stubs import race
-
-STREAM_TICK_S = 3.0
 
 
 async def get_results(
@@ -56,20 +53,11 @@ async def get_results(
     return ResultsPage(items=rows[offset : offset + limit], total=len(rows))
 
 
-async def scan_events() -> AsyncIterator[ScanEvent]:
-    """Yield a scan event whenever a fake runner passes a checkpoint."""
-    previous = race.race_elapsed_s()
-    while True:
-        await asyncio.sleep(STREAM_TICK_S)
-        now = race.race_elapsed_s()
-        if now < previous:  # the fake race clock looped back to the start
-            previous = 0.0
-        for r in race.runners():
-            for split in race.runner_state(r, now)["splits"]:
-                if previous < split["elapsed_seconds"] <= now:
-                    yield ScanEvent(
-                        bib_number=r.bib_number,
-                        checkpoint_id=split["checkpoint_id"],
-                        elapsed_seconds=split["elapsed_seconds"],
-                    )
-        previous = now
+async def scan_events(redis: Redis, category: str | None) -> AsyncIterator[ScanEvent]:
+    """Every saved scan, as it happens (published by scan ingestion), optionally one race only."""
+    code = category.upper() if category else None
+    async with broadcaster(redis, SCANS_CHANNEL).listen(SCANS_CHANNEL) as messages:
+        async for data in messages:
+            event = ScanEvent.model_validate(data)
+            if code is None or event.category_code == code:
+                yield event

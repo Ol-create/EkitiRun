@@ -16,7 +16,7 @@ are flagged in GET /admin/scanner-devices.
 import logging
 import re
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from redis.asyncio import Redis
@@ -26,10 +26,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
+from app.core.broadcast import publish
 from app.core.errors import AppError
 from app.core.security import parse_qr_token
 from app.models import Category, Checkpoint, Runner, Scan, ScannerDevice
 from app.models.scanner_device import CLOCK_TOLERANCE_MS
+from app.modules.results.schemas import SCANS_CHANNEL, ScanEvent
 from app.modules.scans.schemas import InvalidReason, ScanBatchIn, ScanBatchOut, ScanIn, ScanResult
 from app.modules.timing import service as timing
 
@@ -118,6 +120,40 @@ async def _save(
         return False  # the same client_id arrived twice at once: a retry
 
 
+async def _publish(
+    session: AsyncSession,
+    redis: Redis,
+    checkpoint: Checkpoint,
+    saved: list[tuple[str, int, ScanIn]],
+    offset_ms: int | None,
+) -> None:
+    """Announce saved scans on the `scans` channel (GET /stream/results, E11)."""
+    if not saved:
+        return
+    categories = {
+        c.id: c
+        for c in await session.scalars(
+            select(Category).where(Category.id.in_({cid for _, cid, _ in saved}))
+        )
+    }
+    for bib, category_id, scan in saved:
+        category = categories[category_id]
+        at = scan.scanned_at + timedelta(milliseconds=offset_ms or 0)
+        event = ScanEvent(
+            bib_number=bib,
+            category_code=category.code,
+            checkpoint_id=checkpoint.id,
+            checkpoint_name=checkpoint.name,
+            distance_km=float(checkpoint.distance_km),
+            scanned_at=at,
+            elapsed_seconds=timing.elapsed(at, category.gun_start_at),
+        )
+        try:
+            await publish(redis, SCANS_CHANNEL, event.model_dump(mode="json"))
+        except Exception as exc:  # live updates are a bonus: never fail the upload for them
+            log.warning("Couldn't publish scan of %s: %s", bib, exc)
+
+
 async def ingest_batch(
     session: AsyncSession, redis: Redis, device_id: str, body: ScanBatchIn
 ) -> ScanBatchOut:
@@ -160,6 +196,7 @@ async def ingest_batch(
 
     results = []
     changed_categories: set[int] = set()
+    saved_scans: list[tuple[str, int, ScanIn]] = []  # (bib, category id, scan) for live events
     for scan, qr_runner_id, bib, reason in wanted:
         found = runners.get(bib) if bib else None
         if reason is None and (found is None or (qr_runner_id and found[0] != qr_runner_id)):
@@ -177,8 +214,9 @@ async def ingest_batch(
             saved = False
         else:
             saved = await _save(session, scan, found[0], checkpoint.id, device_id, offset_ms)
-        if saved:
+        if saved and bib:
             changed_categories.add(found[2])
+            saved_scans.append((bib, found[2], scan))
         results.append(
             ScanResult(
                 client_id=scan.client_id,
@@ -189,4 +227,5 @@ async def ingest_batch(
 
     await session.commit()
     await timing.mark_changed(redis, changed_categories)  # standings rebuild on next read
+    await _publish(session, redis, checkpoint, saved_scans, offset_ms)
     return ScanBatchOut(results=results)
