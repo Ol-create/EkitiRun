@@ -27,6 +27,7 @@ from app.modules.gps.ingest import (
     decode_entries,
     write_batch,
 )
+from app.modules.gps.live import update_live
 
 log = logging.getLogger("ekitirun.gps_writer")
 BATCH = 2_000
@@ -55,9 +56,14 @@ async def process_once(redis: Redis, trackers: TrackerIndex, consumer: str) -> i
         entries = response[0][1] if response else []
     if not entries:
         return 0
+    positions = decode_entries(entries)
     async with SessionLocal() as session:
-        stats = await write_batch(session, trackers, decode_entries(entries))
+        stats = await write_batch(session, trackers, positions)
     await redis.xack(STREAM, GROUP, *[entry_id for entry_id, _ in entries])
+    try:
+        await update_live(redis, trackers, positions)  # the maps (E14); saved either way
+    except Exception:
+        log.exception("Live position update failed for a saved batch")
     if stats.ignored or stats.off_route:
         log.info(
             "GPS batch: %d saved (%d off route), %d from unassigned trackers ignored",

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_PACE_S_PER_KM,
+  displayPosition,
   estimatePosition,
   pointAt,
   recentPace,
@@ -103,5 +104,41 @@ describe("estimatePosition", () => {
     const position = estimatePosition(ROUTE, CHECKPOINTS, [split(0, 0), split(5, 25)], "dnf", at(90));
 
     expect(position).toMatchObject({ distance_km: 5, is_estimate: false });
+  });
+});
+
+describe("displayPosition", () => {
+  const live = (minutesAgo: number, is_stale = false) => ({
+    lat: 7.7,
+    lng: 5.3,
+    distance_km: 6.2,
+    recorded_at: at(40 - minutesAgo).toISOString(),
+    is_stale,
+  });
+  const splits = [split(0, 0), split(5, 25)];
+
+  it("uses a fresh GPS fix while the runner is on course", () => {
+    expect(displayPosition(live(1), ROUTE, CHECKPOINTS, splits, "started", at(40))).toEqual({
+      lat: 7.7,
+      lng: 5.3,
+      distance_km: 6.2,
+      is_estimate: false,
+      source: "gps",
+    });
+  });
+
+  it("falls back to the estimate when the fix is stale, old or missing", () => {
+    for (const fix of [live(1, true), live(3), null]) {
+      const shown = displayPosition(fix, ROUTE, CHECKPOINTS, splits, "started", at(40));
+      expect(shown.source).toBe("estimate");
+      expect(shown.is_estimate).toBe(true);
+    }
+  });
+
+  it("ignores GPS once the runner has finished", () => {
+    const shown = displayPosition(live(0), ROUTE, CHECKPOINTS, [split(10, 50)], "finished", at(40));
+
+    expect(shown).toMatchObject({ source: "estimate", is_estimate: false });
+    expect(shown.distance_km).toBeCloseTo(10, 2);
   });
 });

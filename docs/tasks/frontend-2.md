@@ -59,7 +59,7 @@ Add the map to `/track/[bib]`, above the splits table.
 - [ ] Leaflet map with OpenStreetMap tiles. Load it with `dynamic(..., { ssr: false })`, because Leaflet needs the browser.
 - [ ] Draw the route line and the checkpoint markers from `GET /route`. Markers for checkpoints the runner has passed are green, the others grey.
 - [ ] Runner marker at the GPS position from `live_position`, moved live by `/stream/positions?bib=` (`EventSource`). Animate the move rather than jumping.
-- [ ] If `live_position` is missing or `is_stale` is true, fall back to Lead's `estimatePosition(...)` from `lib/tracking.ts`, recalculated every 10 s, shown as a pulsing marker labelled "Estimated position". A live GPS marker is solid.
+- [ ] Use Lead's `displayPosition(live_position, route, checkpoints, splits, status)` from `lib/tracking.ts`, recalculated every 10 s and on every stream event: it returns the live GPS fix while it's fresh, otherwise an estimate. `source: "gps"` is a solid marker; `source: "estimate"` is a pulsing marker labelled "Estimated position".
 - [ ] Finished runners show at the finish line. Runners who haven't started show at the start line.
 - [ ] Map height 300px on mobile, 450px on desktop.
 

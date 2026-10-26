@@ -7,7 +7,6 @@ module's own tests and delete them here.
 import pytest
 
 from app.core.config import settings
-from app.modules.gps import service as gps_service
 from app.stubs import race
 
 API = "/api/v1"
@@ -136,20 +135,6 @@ async def test_gps_ingest_needs_gateway_secret(client):
     )
     assert ok.status_code == 202
     assert ok.json() == {"accepted": 1}
-
-
-async def test_positions_snapshot(client):
-    body = (await client.get(f"{API}/positions", params={"category": "FULL"})).json()
-    assert body["runners"]
-    assert all(r["category_code"] == "FULL" for r in body["runners"])
-
-
-async def test_position_stream(client):
-    assert (await client.get(f"{API}/stream/positions", params={"bib": "X9999"})).status_code == 404
-    runner = race.runner_by_bib("F0001")
-    first = await anext(gps_service.position_events(runner))
-    assert first.bib_number == "F0001"
-    assert -90 <= first.lat <= 90
 
 
 async def test_trackers_admin(client):

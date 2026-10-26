@@ -87,6 +87,9 @@ class AssignedTracker:
     tracker_id: int
     runner_id: Any
     course: RouteGeometry
+    bib_number: str = ""
+    category_code: str = ""
+    gender: str = ""
 
 
 class TrackerIndex:
@@ -101,18 +104,29 @@ class TrackerIndex:
         if not force and time.monotonic() - self.loaded_at < DEVICE_REFRESH_S:
             return
         rows = await session.execute(
-            select(Tracker.device_id, Tracker.id, Tracker.runner_id, Route.id, Route.geojson)
+            select(
+                Tracker.device_id,
+                Tracker.id,
+                Tracker.runner_id,
+                Route.id,
+                Route.geojson,
+                Runner.bib_number,
+                Category.code,
+                Runner.gender,
+            )
             .join(Runner, Runner.id == Tracker.runner_id)
             .join(Category, Category.id == Runner.category_id)
             .join(Route, Route.id == Category.route_id)
             .where(Tracker.status == "assigned")
         )
         index = {}
-        for device_id, tracker_id, runner_id, route_id, geojson in rows:
+        for device_id, tracker_id, runner_id, route_id, geojson, bib, code, gender in rows:
             if route_id not in self._courses:
                 coords = [(float(x), float(y)) for x, y in geojson["coordinates"]]
                 self._courses[route_id] = RouteGeometry(coords)
-            index[device_id] = AssignedTracker(tracker_id, runner_id, self._courses[route_id])
+            index[device_id] = AssignedTracker(
+                tracker_id, runner_id, self._courses[route_id], bib, code, gender
+            )
         self.by_device = index
         self.loaded_at = time.monotonic()
 

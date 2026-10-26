@@ -54,7 +54,7 @@ Module layout (copied from `categories/`): `router.py` (endpoints), `schemas.py`
   - If `q` looks like a bib (e.g. `H0123`), match the bib exactly.
   - Otherwise, match the name case-insensitively (`ILIKE`).
   - At most 20 results, and `422` if `q` is shorter than 2 characters.
-- [ ] `GET /runners/{bib_number}` returns the shape in the contract, with splits ordered by checkpoint distance. Get status, splits, finish time and positions from `await timing.service.get_runner_result(session, redis, runner.id)` (`from app.modules.timing import service as timing`; `redis: RedisDep` in your router); don't calculate them yourself. It returns `None` for an unknown runner.
+- [ ] `GET /runners/{bib_number}` returns the shape in the contract, with splits ordered by checkpoint distance. Get status, splits, finish time and positions from `await timing.service.get_runner_result(session, redis, runner.id)` (`from app.modules.timing import service as timing`; `redis: RedisDep` in your router); don't calculate them yourself. It returns `None` for an unknown runner. For `live_position`, use `await live.get_live_position(redis, runner.id)` (`from app.modules.gps import live`): it returns the contract's shape, or `None` when the runner has no tracker or no fix yet.
 - [ ] **Never** return phone, email, date of birth or emergency contact on these public endpoints. Add a test that checks this.
 
 ## B4: PDF templates and tests (2 pts)

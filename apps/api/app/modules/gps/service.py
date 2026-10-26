@@ -1,57 +1,42 @@
-"""Database and business logic for GPS tracking. Routers call this; it never imports FastAPI.
+"""GPS endpoints' logic. Routers call this; it never imports FastAPI. Owner: Lead (E13, E14).
 
-Ingestion is real since E13 (app/modules/gps/ingest.py).
-STUB(E14): the live snapshot and position stream still come from the fake race in
-app/stubs/race.py.
+Ingestion: app/modules/gps/ingest.py. Live positions: app/modules/gps/live.py.
 """
 
-import asyncio
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
+from redis.asyncio import Redis
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.broadcast import broadcaster
 from app.core.errors import AppError
-from app.modules.gps.schemas import PositionEvent, PositionsSnapshot, RunnerPosition
-from app.stubs import race
-
-STREAM_TICK_S = 5.0
-
-
-async def snapshot(category: str | None) -> PositionsSnapshot:
-    runners = []
-    for r in race.runners():
-        if category and r.category_code != category.upper():
-            continue
-        state = race.runner_state(r)
-        live = state["live_position"]
-        if state["status"] != "started" or live is None:
-            continue  # only runners on course with a tracker
-        runners.append(
-            RunnerPosition(
-                bib_number=r.bib_number,
-                category_code=r.category_code,
-                gender=r.gender,  # type: ignore[arg-type]
-                lat=live["lat"],
-                lng=live["lng"],
-                distance_km=live["distance_km"],
-                is_stale=live["is_stale"],
-            )
-        )
-    return PositionsSnapshot(updated_at=datetime.now(UTC), runners=runners)
+from app.models import Runner
+from app.modules.gps import live
+from app.modules.gps.schemas import PositionEvent
 
 
-def check_runner(bib: str) -> race.FakeRunner:
-    r = race.runner_by_bib(bib)
-    if r is None:
+async def runner_bib(session: AsyncSession, bib: str) -> str:
+    """The runner's bib in its official form, or 404 RUNNER_NOT_FOUND."""
+    found = await session.scalar(select(Runner.bib_number).where(Runner.bib_number == bib.upper()))
+    if found is None:
         raise AppError(404, "RUNNER_NOT_FOUND", f"No runner with bib {bib.upper()}.")
-    return r
+    return found
 
 
-async def position_events(r: race.FakeRunner) -> AsyncIterator[PositionEvent]:
-    """Yield the runner's position on every new (fake) fix."""
-    last_recorded = None
-    while True:
-        live = race.runner_state(r)["live_position"]
-        if live is not None and live["recorded_at"] != last_recorded:
-            last_recorded = live["recorded_at"]
-            yield PositionEvent(bib_number=r.bib_number, **live)
-        await asyncio.sleep(STREAM_TICK_S)
+async def position_events(
+    session: AsyncSession, redis: Redis, bib: str
+) -> AsyncIterator[PositionEvent]:
+    """The runner's current position straight away (if any), then every new fix."""
+    runner_id = await session.scalar(select(Runner.id).where(Runner.bib_number == bib))
+    async with broadcaster(redis, "positions:*").listen(live.channel(bib)) as messages:
+        current = await live.get_live_position(redis, runner_id)
+        if current is not None:
+            yield PositionEvent(bib_number=bib, **current.model_dump())
+        await session.close()  # don't hold a database connection for the whole stream
+        async for data in messages:
+            event = PositionEvent.model_validate(data)
+            age = (datetime.now(UTC) - event.recorded_at).total_seconds()
+            event.is_stale = age > live.STALE_AFTER_S
+            yield event

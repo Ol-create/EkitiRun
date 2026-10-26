@@ -434,7 +434,8 @@ export interface paths {
         };
         /**
          * Positions
-         * @description Latest point for every runner on course. Poll every 5 s.
+         * @description Latest point of every runner on course (finishers and DNF excluded). Poll every 5 s:
+         *     the snapshot is rebuilt at most that often and served from a cache.
          */
         get: operations["positions_api_v1_positions_get"];
         put?: never;
@@ -454,7 +455,8 @@ export interface paths {
         };
         /**
          * Stream Positions
-         * @description Server-Sent Events for one runner: `event: position` on every new fix.
+         * @description Server-Sent Events for one runner: `event: position` with the current position
+         *     straight away, then on every new fix. A `: ping` comment every 15 s.
          */
         get: operations["stream_positions_api_v1_stream_positions_get"];
         put?: never;

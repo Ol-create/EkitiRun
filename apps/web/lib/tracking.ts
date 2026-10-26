@@ -1,9 +1,13 @@
-// Where is a runner between checkpoints? Owner: Lead (E10). Frontend 2 calls it; don't change it.
+// Where is a runner right now? Owner: Lead (E10, E14). Frontend 2 calls it; don't change it.
 //
-// Used on the map when there is no fresh GPS fix (no tracker, flat battery, no signal):
+// On the map, use displayPosition(): live GPS when it's fresh, otherwise an estimate:
 //
-//   const position = estimatePosition(route.route, route.checkpoints, runner.splits, runner.status);
-//   // recalculate every 10 s while the runner is on course
+//   const position = displayPosition(runner.live_position, route.route, route.checkpoints,
+//                                    runner.splits, runner.status);
+//   // position.source: "gps" (solid marker) or "estimate" (pulsing, "Estimated position")
+//   // recalculate every 10 s, and whenever /stream/positions sends a new fix
+//
+// estimatePosition() is the fallback on its own (no tracker, flat battery, no signal).
 //
 // How it works: take the runner's last checkpoint, then move them along the route at
 // their own recent pace for the time since that scan. The estimate never passes the
@@ -70,4 +74,40 @@ export function estimatePosition(
   const limit = Math.min(nextCheckpoint ?? total, total);
   const km = Math.min(last.distance_km + secondsSince / pace, limit);
   return { ...pointAt(route, km), is_estimate: true };
+}
+
+/** A live GPS position as the API sends it (runner detail `live_position`, /stream/positions). */
+export type LivePositionLike = {
+  lat: number;
+  lng: number;
+  distance_km: number;
+  recorded_at: string;
+  is_stale: boolean;
+};
+
+export type DisplayedPosition = EstimatedPosition & { source: "gps" | "estimate" };
+
+/** A fix is stale after 2 minutes, even if the page received it while it was fresh. */
+export const STALE_AFTER_MS = 2 * 60_000;
+
+export function isFresh(live: LivePositionLike | null | undefined, now: Date = new Date()): boolean {
+  return !!live && !live.is_stale && now.getTime() - Date.parse(live.recorded_at) <= STALE_AFTER_MS;
+}
+
+/**
+ * The position to show: the live GPS fix while the runner is on course and the fix is fresh,
+ * otherwise estimatePosition() (which also handles the start line, finish line and DNF).
+ */
+export function displayPosition(
+  live: LivePositionLike | null | undefined,
+  route: RouteLine,
+  checkpoints: CheckpointLike[],
+  splits: SplitLike[],
+  status: RunnerStatus,
+  now: Date = new Date(),
+): DisplayedPosition {
+  if (status === "started" && live && isFresh(live, now)) {
+    return { lat: live.lat, lng: live.lng, distance_km: live.distance_km, is_estimate: false, source: "gps" };
+  }
+  return { ...estimatePosition(route, checkpoints, splits, status, now), source: "estimate" };
 }

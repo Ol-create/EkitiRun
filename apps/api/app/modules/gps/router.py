@@ -6,21 +6,20 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 
-from app.core.deps import GatewayDep
+from app.core.deps import GatewayDep, SessionDep
 from app.core.redis import RedisDep
 from app.core.schemas import error_responses
-from app.modules.gps import ingest, service
+from app.modules.gps import ingest, live, service
 from app.modules.gps.schemas import GpsBatchAccepted, GpsBatchIn, PositionsSnapshot
-from app.stubs import race
 
 router = APIRouter(tags=["gps"])
 
 
-def _runner_for_bib(
-    bib: Annotated[str, Query(description="Bib number, e.g. F0001")],
-) -> race.FakeRunner:
+async def _bib(
+    bib: Annotated[str, Query(description="Bib number, e.g. F0001")], session: SessionDep
+) -> str:
     # A dependency runs before streaming starts, so a 404 is still a normal response.
-    return service.check_runner(bib)
+    return await service.runner_bib(session, bib)
 
 
 @router.post(
@@ -54,10 +53,13 @@ async def ingest_traccar(payload: dict[str, Any], redis: RedisDep) -> GpsBatchAc
 
 @router.get("/positions")
 async def positions(
+    session: SessionDep,
+    redis: RedisDep,
     category: Annotated[str | None, Query(description="Category code, e.g. FULL")] = None,
 ) -> PositionsSnapshot:
-    """Latest point for every runner on course. Poll every 5 s."""
-    return await service.snapshot(category)
+    """Latest point of every runner on course (finishers and DNF excluded). Poll every 5 s:
+    the snapshot is rebuilt at most that often and served from a cache."""
+    return await live.snapshot(session, redis, category)
 
 
 @router.get(
@@ -66,8 +68,9 @@ async def positions(
     responses=error_responses(404),
 )
 async def stream_positions(
-    runner: Annotated[race.FakeRunner, Depends(_runner_for_bib)],
+    bib: Annotated[str, Depends(_bib)], session: SessionDep, redis: RedisDep
 ) -> AsyncIterable[ServerSentEvent]:
-    """Server-Sent Events for one runner: `event: position` on every new fix."""
-    async for event in service.position_events(runner):
+    """Server-Sent Events for one runner: `event: position` with the current position
+    straight away, then on every new fix. A `: ping` comment every 15 s."""
+    async for event in service.position_events(session, redis, bib):
         yield ServerSentEvent(event="position", data=event)
