@@ -1,1 +1,1 @@
-"""Pydantic request/response models for categories."""
+"""Pydantic request/response models for categories."""                                                             
